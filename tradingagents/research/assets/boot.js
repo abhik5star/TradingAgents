@@ -265,8 +265,12 @@
       })
       .catch(function () {
         view.failures += 1;
-        if (view.failures >= 2) {
-          setStatus('RECONNECTING · attempt ' + view.failures, 'warn');
+        // The numbers on screen came from the server at render time. When polling stops
+        // working, say that they are stale rather than pretending they are current.
+        if (view.failures >= 3) {
+          setStatus('OFFLINE · render-time data', 'down');
+        } else {
+          setStatus('STALE · render-time data', 'warn');
         }
       })
       .then(function () { clearTimeout(timer); });
