@@ -53,6 +53,12 @@ acceptance gates and refuses to promote the ones that do not clear them.
   frames, ping/pong), so no dependency was added and every frame is exercised against a real
   socket in the tests. The renderer is inline and CDN-free because the page has no network at
   runtime; with WebGL or JavaScript off, the table carries the same numbers.
+- **A design file for both screens.** `docs/design/strategy-intelligence.html` is a
+  self-contained board — six frames, a layer tree, an inspector, components, tokens and
+  redlines — covering the research dashboard and the 3D market view. Its palette is generated
+  from the CSS the server ships (and asserted against it by the test suite), its scene is
+  rendered from the application's own camera and geometry, and `tokens.tokens-studio.json`
+  imports the same values into Figma as variables.
 - **An honest answer for Indian equities.** There is no keyless public NSE/BSE WebSocket, so
   `research feeds` prints what each route actually costs (Kite, Upstox and Angel One all need
   your own API key from a funded account; Kite's is paid), `poll:<SYMBOL>` shows delayed

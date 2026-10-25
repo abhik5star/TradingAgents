@@ -474,6 +474,13 @@ frames; binary broker protocols (Kite's ticker, Upstox v3 protobuf) need a decod
 feed that receives messages without a recognisable price says exactly that instead of showing a
 flat line.
 
+Both screens are designed in
+[`docs/design/strategy-intelligence.html`](docs/design/strategy-intelligence.html) — a
+self-contained design file (frames, layer tree, inspector, tokens, components, redlines) whose
+palette is asserted against the shipped CSS by the test suite. The scene inside it is rendered
+from the application's own geometry and camera, and `docs/design/tokens.tokens-studio.json` is
+the same palette in the format that imports into Figma variables.
+
 ## Reproducibility
 
 TradingAgents is LLM-driven, so two runs of the same ticker and date can differ. This is expected for a research tool built on language models, not a defect. The variation comes from a few distinct sources, and it helps to separate them.

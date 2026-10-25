@@ -1,0 +1,1878 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategy Intelligence · design file</title>
+<style>
+/* Board chrome for the Strategy Intelligence design file.
+ *
+ * Deliberately its own stylesheet: the board imitates a design tool, and the frames inside
+ * it need to look nothing like the tool. Frame content is styled by `frame.css`.
+ */
+:root {
+  --bg: #0e1116;
+  --bg-2: #141922;
+  --panel: #11161e;
+  --panel-2: #171d27;
+  --hair: #232b37;
+  --hair-2: #2c3542;
+  --text: #dbe3ee;
+  --text-dim: #8b98a8;
+  --text-faint: #64707e;
+  --sel: #4c8dff;
+  --sel-soft: rgba(76, 141, 255, .16);
+  --chip: #1c2430;
+  --ok: #6ee7a8;
+  --warn: #f5c76b;
+  --bad: #ff9a9a;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; color: inherit; }
+
+/* ------------------------------------------------------------------ layout */
+
+.app {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr) 292px;
+  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-areas:
+    "top top top"
+    "layers canvas inspect";
+  height: 100vh;
+  overflow: hidden;
+}
+
+.topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--hair);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+}
+
+.brand .glyph {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #4c8dff, #7cf0b4);
+  display: grid;
+  place-items: center;
+  color: #08121d;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.crumbs { color: var(--text-faint); font-size: 12px; white-space: nowrap; }
+.crumbs b { color: var(--text-dim); font-weight: 600; }
+
+.tabs { display: flex; gap: 2px; margin-left: 6px; overflow: hidden; }
+.tab {
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--text); background: var(--panel-2); }
+.tab[aria-selected="true"] { color: var(--text); background: var(--chip); }
+
+.spacer { flex: 1; }
+
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--panel-2);
+  border: 1px solid var(--hair);
+  border-radius: 7px;
+  padding: 2px;
+}
+.zoom button {
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  width: 26px;
+  height: 24px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.zoom button:hover { background: var(--chip); color: var(--text); }
+.zoom .value {
+  min-width: 46px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ghost {
+  border: 1px solid var(--hair-2);
+  background: transparent;
+  color: var(--text-dim);
+  padding: 6px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ghost:hover { color: var(--text); border-color: #3a4553; }
+.ghost[aria-pressed="true"] { background: var(--sel-soft); border-color: var(--sel); color: #cfe0ff; }
+
+/* ------------------------------------------------------------------ panels */
+
+.side {
+  background: var(--panel);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.side.left { grid-area: layers; border-right: 1px solid var(--hair); }
+.side.right { grid-area: inspect; border-left: 1px solid var(--hair); }
+
+.block { border-bottom: 1px solid var(--hair); padding: 10px 0 12px; }
+.block h2 {
+  margin: 0;
+  padding: 0 14px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.layers { list-style: none; margin: 0; padding: 0; }
+.layers li { padding: 0 8px; }
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  padding: 5px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.layer:hover { background: var(--panel-2); color: var(--text); }
+.layer[aria-current="true"] { background: var(--sel-soft); color: #dbe8ff; }
+.layer .kind {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  border: 1px solid var(--hair-2);
+  border-radius: 3px;
+  padding: 0 3px;
+  flex: none;
+}
+.layer[aria-current="true"] .kind { border-color: var(--sel); color: #a8c8ff; }
+.layer .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+
+/* ------------------------------------------------------------------ canvas */
+
+.canvas {
+  grid-area: canvas;
+  position: relative;
+  overflow: auto;
+  background-color: #0b0e13;
+  background-image:
+    radial-gradient(circle at 1px 1px, #1b2330 1px, transparent 0);
+  background-size: 24px 24px;
+  scrollbar-width: thin;
+}
+.canvas-inner {
+  transform-origin: 0 0;
+  padding: 56px 64px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 92px;
+  width: max-content;
+}
+
+.artboard { position: relative; }
+.artboard > header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px 2px;
+}
+.artboard .label {
+  font-size: 12px;
+  font-weight: 650;
+  color: #c3cedd;
+  letter-spacing: -.005em;
+}
+.artboard .dims {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.artboard .note {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-left: auto;
+  max-width: 420px;
+  text-align: right;
+}
+.frame {
+  position: relative;
+  outline: 1px solid #202834;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px -50px #000;
+}
+.frame.selectable { cursor: default; }
+.frame.selectable:hover { outline-color: #33405a; }
+.frame.selected { outline: 2px solid var(--sel); }
+
+/* the "measurement" look design tools put around a frame */
+.dim-h, .dim-v {
+  position: absolute;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .04em;
+  pointer-events: none;
+}
+.dim-h { top: -16px; left: 50%; transform: translateX(-50%); }
+
+/* ------------------------------------------------------------------ inspector */
+
+.inspect-head {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--hair);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inspect-head .chip {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  border: 1px solid var(--hair-2);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.inspect-head .title { font-size: 13px; font-weight: 650; letter-spacing: -.01em; }
+
+.rows { padding: 6px 14px 4px; display: grid; grid-template-columns: 92px 1fr; gap: 5px 8px; }
+.rows dt { color: var(--text-faint); font-size: 11.5px; }
+.rows dd { margin: 0; font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.rows dd.mono { font-family: var(--mono); font-size: 11px; color: #c8d3e2; }
+
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 0 0; }
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, .12);
+}
+
+.token-list { list-style: none; margin: 0; padding: 0 14px; }
+.token-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.token-list .dot { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(255, 255, 255, .14); flex: none; }
+.token-list code { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
+
+.tip {
+  margin: 10px 14px 0;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: var(--panel-2);
+  border: 1px solid var(--hair);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.tip b { color: var(--text); font-weight: 650; }
+.tip code { font-family: var(--mono); font-size: 10.5px; color: #b9c6d8; }
+
+/* present mode hides the tool and lets the frames breathe */
+body.present .side, body.present .topbar { display: none; }
+body.present .app { grid-template-columns: 1fr; grid-template-rows: 1fr; grid-template-areas: "canvas"; }
+body.present .canvas { background: #0b0e13; }
+body.present .canvas-inner { padding: 40px 48px 80px; }
+
+@media (max-width: 1180px) {
+  .app { grid-template-columns: 200px minmax(0, 1fr) 250px; }
+  .artboard .note { display: none; }
+}
+
+</style>
+<style>
+/* The screens themselves. Two themes, both taken from the shipped app:
+ * `--theme-evidence` for anything that shows a stored number, `--theme-market` for the
+ * live tape. Frames never mix them, because mixing them is how a delayed quote starts
+ * looking like a test result.
+ */
+
+.evidence {
+  --ink: #12161c;
+  --paper: #fbfaf7;
+  --surface: #ffffff;
+  --muted: #6b7280;
+  --line: #e3e0d8;
+  --line-strong: #cfc9bb;
+  --accent: #1f5f8b;
+  --accent-press: #17496b;
+  --ok: #1c6b46;
+  --warn: #8a5a00;
+  --bad: #8c2f2f;
+  --wash-accent: #eef4f9;
+  --wash-ok: #eaf5ee;
+  --wash-warn: #fbf2df;
+  --wash-bad: #f9ecec;
+
+  background: var(--paper);
+  color: var(--ink);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.market {
+  --stage: #080c12;
+  --stage-mid: #0a1018;
+  --stage-glow: #16273a;
+  --mink: #e8eef6;
+  --mmuted: #8fa3b8;
+  --mhair: rgba(232, 238, 246, .14);
+  --live: #7cf0b4;
+  --sim: #f6cd6b;
+  --down: #ff9d9d;
+  --accent: #1f5f8b;
+
+  background: var(--stage);
+  color: var(--mink);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------------ page shell */
+
+.sheet { padding: 30px 34px 40px; }
+.sheet.dense { padding: 24px 28px 32px; }
+
+.masthead { border-bottom: 2px solid currentColor; padding-bottom: 11px; margin-bottom: 18px; }
+.evidence .masthead { border-color: var(--ink); }
+.market .masthead { border-color: var(--mink); }
+
+.eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.market .eyebrow { color: #6cc6f5; }
+
+h1 { font-size: 27px; line-height: 1.15; margin: 0 0 3px; letter-spacing: -.015em; font-weight: 650; }
+h2 { font-size: 17px; margin: 0 0 8px; letter-spacing: -.01em; font-weight: 650; }
+h3 { font-size: 11px; margin: 0 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
+.market h3 { color: var(--mmuted); }
+p { margin: 0 0 6px; }
+.muted { color: var(--muted); }
+.market .muted { color: var(--mmuted); }
+.small { font-size: 12.5px; }
+.tiny { font-size: 11.5px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.num { font-variant-numeric: tabular-nums; }
+.up { color: var(--ok); }
+.down { color: var(--bad); }
+.market .up { color: var(--live); }
+.market .down { color: var(--down); }
+
+.row { display: flex; gap: 14px; align-items: flex-start; }
+.row.between { justify-content: space-between; align-items: center; }
+.col { display: flex; flex-direction: column; gap: 10px; }
+.grow { flex: 1; min-width: 0; }
+
+/* ------------------------------------------------------------------ badges */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.badge.ok { color: var(--ok); background: var(--wash-ok); }
+.badge.warn { color: var(--warn); background: var(--wash-warn); }
+.badge.bad { color: var(--bad); background: var(--wash-bad); }
+.badge.neutral { color: var(--muted); background: transparent; border-color: var(--line-strong); }
+.badge.accent { color: var(--accent); background: var(--wash-accent); }
+
+.market .badge { border-color: currentColor; background: transparent; }
+.market .badge.live { color: var(--live); background: rgba(28, 107, 70, .28); }
+.market .badge.sim { color: var(--sim); background: rgba(138, 90, 0, .28); }
+.market .badge.delayed { color: #ffcf8a; background: rgba(138, 90, 0, .22); }
+.market .badge.down { color: var(--down); background: rgba(140, 47, 47, .25); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ panels & cards */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.panel.tight { padding: 12px 14px; }
+.panel.flush { padding: 0; overflow: hidden; }
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fdfcfa;
+}
+.panel-head h2 { margin: 0; font-size: 14px; }
+.panel-body { padding: 13px 16px; }
+.panel-foot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: #fcfbf8;
+  font-size: 12px;
+  color: var(--muted);
+}
+.rule { height: 1px; background: var(--line); margin: 12px 0; border: 0; }
+
+/* KPI tiles */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.kpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpi {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 11px 13px 12px;
+}
+.kpi .k {
+  font-size: 10.5px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  margin: 0 0 5px;
+}
+.kpi .v {
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  margin: 0;
+}
+.kpi .v small { font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted); margin-left: 3px; }
+.kpi .s { margin: 3px 0 0; font-size: 11.5px; color: var(--muted); }
+
+/* ------------------------------------------------------------------ verdict */
+
+.verdict {
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--warn);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fffdf7, #fdfbf4);
+  padding: 14px 16px 15px;
+}
+.verdict.stop { border-left-color: var(--bad); background: linear-gradient(180deg, #fdf7f6, #fbf1f0); }
+.verdict .head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.verdict .mark {
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: .04em;
+}
+.verdict .why { font-size: 13px; color: #4b5563; margin: 0 0 9px; }
+.gates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; margin: 0; padding: 0; list-style: none; }
+.gates li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--line);
+}
+.gates li .g { color: #6b7280; min-width: 158px; }
+.gates li .n { font-variant-numeric: tabular-nums; font-weight: 600; }
+.gates li .n.fail { color: var(--bad); }
+
+/* ------------------------------------------------------------------ pipeline stepper */
+
+.stepper { display: flex; align-items: flex-start; gap: 0; margin: 4px 0 0; padding: 0; list-style: none; }
+.stepper li { flex: 1; position: relative; padding-top: 20px; }
+.stepper li::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--line);
+}
+.stepper li:first-child::before { left: 8px; }
+.stepper li:last-child::before { right: calc(100% - 16px); }
+.stepper li .pip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 2px solid var(--line-strong);
+}
+.stepper li .pip.filled { background: var(--ok); border-color: var(--ok); }
+.stepper li .pip.current { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(31, 95, 139, .14); }
+.stepper li .pip.hollow { background: var(--paper); border-color: var(--line-strong); border-style: dashed; }
+.stepper li .t { display: block; font-size: 11.5px; font-weight: 650; color: var(--ink); }
+.stepper li .d { display: block; font-size: 10.5px; color: var(--muted); }
+.stepper li.off .t { color: var(--muted); font-weight: 500; }
+
+/* ------------------------------------------------------------------ table */
+
+table.grid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.grid th {
+  text-align: left;
+  font-weight: 650;
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding: 8px 10px;
+  white-space: nowrap;
+  background: #fdfcfa;
+}
+table.grid td { border-bottom: 1px solid var(--line); padding: 8px 10px; vertical-align: middle; }
+table.grid tr:last-child td { border-bottom: 0; }
+table.grid td.num, table.grid th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.grid td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+table.grid tbody tr:hover td { background: #fdfcf9; }
+
+/* ------------------------------------------------------------------ forms */
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.input, .select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  min-height: 36px;
+}
+.input.placeholder, .select.placeholder { color: #9aa1ab; }
+.select .caret { color: #9aa1ab; font-size: 10px; }
+.hint { font-size: 11px; color: var(--muted); line-height: 1.45; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+}
+.btn:hover { background: var(--accent-press); }
+.btn.secondary { background: #fff; color: var(--ink); border-color: var(--line-strong); }
+.btn.ghost { background: transparent; color: var(--accent); border-color: transparent; padding: 6px 8px; }
+.btn.danger { background: #fff; color: var(--bad); border-color: #e3c7c7; }
+.btn[disabled] { background: #eeece6; color: #a8a29a; border-color: var(--line); cursor: not-allowed; }
+.btn.sm { padding: 5px 10px; font-size: 12px; }
+
+/* ------------------------------------------------------------------ market stage */
+
+.stage {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: radial-gradient(120% 90% at 20% 0%, var(--stage-glow) 0%, var(--stage-mid) 45%, #05080c 100%);
+  box-shadow: 0 18px 40px -22px rgba(8, 12, 18, .8), 0 0 0 1px rgba(18, 26, 38, .9) inset;
+}
+.stage.scene > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage.empty { display: grid; place-content: center; text-align: center; }
+
+.hud { position: absolute; display: flex; align-items: center; gap: 8px; }
+.hud.top { top: 12px; left: 14px; right: 14px; justify-content: space-between; }
+.hud.controls { top: 12px; right: 14px; }
+.hud .meta { font-size: 11px; color: var(--mmuted); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+
+.pill {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(143, 163, 184, .16);
+  color: var(--mmuted);
+  border: 1px solid rgba(143, 163, 184, .3);
+  backdrop-filter: blur(6px);
+}
+.pill.live { color: var(--live); border-color: rgba(124, 240, 180, .45); background: rgba(28, 107, 70, .28); }
+.pill.sim { color: var(--sim); border-color: rgba(246, 205, 107, .45); background: rgba(138, 90, 0, .28); }
+.pill.warn { color: #ffcf8a; border-color: rgba(255, 207, 138, .4); background: rgba(138, 90, 0, .22); }
+.pill.down { color: var(--down); border-color: rgba(255, 157, 157, .4); background: rgba(140, 47, 47, .25); }
+
+.stage-btn {
+  pointer-events: none;
+  font-size: 11px;
+  letter-spacing: .04em;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: var(--mink);
+  background: rgba(232, 238, 246, .08);
+  border: 1px solid rgba(232, 238, 246, .18);
+  backdrop-filter: blur(6px);
+}
+.stage-btn[aria-pressed="true"] { border-color: rgba(124, 240, 180, .5); color: #9ff5c8; }
+
+.legend { list-style: none; margin: 0; padding: 0; position: absolute; left: 14px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(8, 12, 18, .62);
+  border: 1px solid rgba(232, 238, 246, .14);
+  color: var(--mink);
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(6px);
+}
+.legend .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+.legend .sym { font-weight: 700; letter-spacing: .03em; }
+.legend .px { color: var(--mmuted); }
+.stage-hint {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  font-size: 10.5px;
+  letter-spacing: .05em;
+  color: rgba(143, 163, 184, .8);
+  text-transform: uppercase;
+}
+
+.price-tag {
+  position: absolute;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--mink);
+  background: rgba(8, 12, 18, .72);
+  border: 1px solid rgba(232, 238, 246, .18);
+  box-shadow: 0 6px 16px -10px rgba(0, 0, 0, .9);
+  white-space: nowrap;
+}
+.stage .price-tag { transform: translate(-50%, -130%); }
+.price-tag b { font-weight: 700; letter-spacing: .04em; margin-right: 4px; }
+.price-tag.up b { color: var(--live); }
+.price-tag.down b { color: var(--down); }
+.price-tag.sim { border-color: rgba(246, 205, 107, .4); }
+
+.market .panel { background: rgba(232, 238, 246, .03); border-color: var(--mhair); }
+.market .kpi { background: rgba(232, 238, 246, .04); border-color: var(--mhair); }
+.market .kpi .k { color: var(--mmuted); }
+.market .panel-head { background: rgba(232, 238, 246, .04); border-color: var(--mhair); }
+.market .panel-head h2 { color: var(--mink); }
+.market table.grid th { background: rgba(232, 238, 246, .04); border-color: var(--mhair); color: var(--mmuted); }
+.market table.grid td { border-color: var(--mhair); color: var(--mink); }
+.market table.grid tbody tr:hover td { background: rgba(232, 238, 246, .03); }
+.market .kpi .s, .market .hint { color: var(--mmuted); }
+.market .badge.neutral { color: var(--mmuted); border-color: var(--mhair); }
+.market .notice {
+  border-left: 3px solid #6cc6f5;
+  background: rgba(108, 198, 245, .08);
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #c7d6e6;
+}
+
+.sparkline { display: block; }
+.sparkline polyline { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
+
+/* ------------------------------------------------------------------ misc frames */
+
+.cover { padding: 44px 48px; display: flex; flex-direction: column; gap: 22px; }
+.cover .big { font-size: 46px; line-height: 1.04; letter-spacing: -.03em; font-weight: 700; margin: 0; }
+.cover .sub { font-size: 16px; color: var(--muted); max-width: 46ch; }
+.cover .meta-row { display: flex; gap: 26px; flex-wrap: wrap; }
+.cover .meta-row div { font-size: 12px; color: var(--muted); }
+.cover .meta-row b { display: block; color: var(--ink); font-size: 13px; font-weight: 650; }
+
+.swatch-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.swatch-card { border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: #fff; }
+.swatch-card .fill { height: 44px; }
+.swatch-card .meta { padding: 6px 8px; font-size: 10.5px; color: var(--muted); }
+.swatch-card .meta b { display: block; color: var(--ink); font-size: 11px; font-weight: 650; }
+.swatch-card .meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
+
+.toc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 26px; }
+.toc div { display: flex; gap: 10px; font-size: 12.5px; padding: 5px 0; border-bottom: 1px dotted var(--line); }
+.toc span:first-child { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 22px; }
+
+.spec { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 26px; }
+.spec h4 { margin: 0 0 5px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.spec ul { margin: 0; padding-left: 16px; font-size: 12px; color: #374151; }
+.spec li { margin-bottom: 3px; }
+.redline { position: relative; }
+.redline::after {
+  content: attr(data-m);
+  position: absolute;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  color: #c2410c;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 3px;
+  padding: 0 3px;
+  transform: translateY(-50%);
+  top: 50%;
+  right: -6px;
+}
+
+/* a small annotation used sparingly on the artboards */
+.pin {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1f5f8b;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 10px rgba(31, 95, 139, .45);
+  z-index: 5;
+}
+.pin.sim { background: #a9740b; }
+
+/* ------------------------------------------------------------------ narrow frame */
+
+.frame[data-narrow] .sheet { padding: 20px 18px 26px; }
+.frame[data-narrow] .stepper li .t { font-size: 10px; }
+.frame[data-narrow] .stepper li .d { display: none; }
+.frame[data-narrow] .verdict .gates li { border-bottom: 1px dotted var(--line); }
+.frame[data-narrow] .kpi .v { font-size: 19px; }
+.frame[data-narrow] table.grid { font-size: 11.5px; }
+.frame[data-narrow] table.grid th, .frame[data-narrow] table.grid td { padding: 6px 7px; }
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================================================ top bar -->
+  <header class="topbar">
+    <div class="brand"><span class="glyph">SI</span> Strategy Intelligence</div>
+    <div class="crumbs">TradingAgents / <b>research</b> / design</div>
+    <nav class="tabs" role="tablist" aria-label="Pages">
+      <button class="tab" role="tab" aria-selected="true" data-goto="cover">Cover</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="dashboard">Dashboard</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="mobile">Mobile</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="live">3D live</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="components">Components</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="handoff">Handoff</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="zoom">
+      <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      <span class="value" id="zoom-value">42%</span>
+      <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" id="zoom-fit" aria-label="Fit" title="Fit width">fit</button>
+    </div>
+    <button class="ghost" type="button" id="present" aria-pressed="false">Present</button>
+  </header>
+
+  <!-- ============================================================ layers -->
+  <aside class="side left" aria-label="Layers">
+    <div class="block">
+      <h2>Pages</h2>
+      <ul class="layers">
+        <li><button class="layer" data-goto="cover"><span class="kind">fr</span><span class="name">00 · Cover</span></button></li>
+        <li><button class="layer" data-goto="dashboard" aria-current="true"><span class="kind">fr</span><span class="name">01 · Dashboard 1440</span></button></li>
+        <li><button class="layer" data-goto="mobile"><span class="kind">fr</span><span class="name">02 · Dashboard 390</span></button></li>
+        <li><button class="layer" data-goto="live"><span class="kind">fr</span><span class="name">03 · 3D live 1440</span></button></li>
+        <li><button class="layer" data-goto="components"><span class="kind">fr</span><span class="name">04 · Components</span></button></li>
+        <li><button class="layer" data-goto="handoff"><span class="kind">fr</span><span class="name">05 · Handoff</span></button></li>
+      </ul>
+    </div>
+    <div class="block">
+      <h2>Layer tree</h2>
+      <ul class="layers" id="tree">
+        <li><button class="layer" data-target="nav"><span class="kind">cmp</span><span class="name">TopNav</span></button></li>
+        <li><button class="layer" data-target="champion"><span class="kind">cmp</span><span class="name">ChampionCard</span></button></li>
+        <li><button class="layer" data-target="stepper"><span class="kind">cmp</span><span class="name">PipelineStepper</span></button></li>
+        <li><button class="layer" data-target="kpis"><span class="kind">cmp</span><span class="name">KpiStrip</span></button></li>
+        <li><button class="layer" data-target="verdict"><span class="kind">cmp</span><span class="name">NoTradeVerdict</span></button></li>
+        <li><button class="layer" data-target="sessions"><span class="kind">tbl</span><span class="name">PaperSessions</span></button></li>
+        <li><button class="layer" data-target="counts"><span class="kind">cmp</span><span class="name">EvidenceCounts</span></button></li>
+        <li><button class="layer" data-target="risk"><span class="kind">cmp</span><span class="name">RiskPolicy</span></button></li>
+        <li><button class="layer" data-target="stage"><span class="kind">cmp</span><span class="name">MarketStage</span></button></li>
+        <li><button class="layer" data-target="legend"><span class="kind">cmp</span><span class="name">FeedLegend</span></button></li>
+        <li><button class="layer" data-target="tape"><span class="kind">tbl</span><span class="name">TapeTable</span></button></li>
+        <li><button class="layer" data-target="freetable"><span class="kind">tbl</span><span class="name">ProviderTable</span></button></li>
+      </ul>
+    </div>
+    <div class="block">
+      <h2>Design tokens</h2>
+      <ul class="token-list">
+        <li><span class="dot" style="background:#1f5f8b"></span>accent<code>#1f5f8b</code></li>
+        <li><span class="dot" style="background:#1c6b46"></span>pass<code>#1c6b46</code></li>
+        <li><span class="dot" style="background:#8a5a00"></span>caution<code>#8a5a00</code></li>
+        <li><span class="dot" style="background:#8c2f2f"></span>stop<code>#8c2f2f</code></li>
+        <li><span class="dot" style="background:#6cc6f5"></span>track-1<code>#6cc6f5</code></li>
+        <li><span class="dot" style="background:#f2b134"></span>track-2<code>#f2b134</code></li>
+        <li><span class="dot" style="background:#67d18a"></span>track-3<code>#67d18a</code></li>
+      </ul>
+      <p class="tip">Colours come from the shipped app, not from a mood board: <code>docs/design/tokens.json</code> is generated from the same values the server renders.</p>
+    </div>
+  </aside>
+
+  <!-- ============================================================ canvas -->
+  <main class="canvas" id="canvas">
+    <div class="canvas-inner" id="canvas-inner">
+
+      <!-- ------------------------------------------------ 00 cover -->
+      <section class="artboard" id="ab-cover">
+        <header>
+          <span class="label">00 · Cover</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">The argument of the product in one screen: evidence first, permission last.</span>
+        </header>
+        <div class="frame selectable evidence" id="cover" style="width:1440px">
+          <div class="cover">
+            <p class="eyebrow">TradingAgents · research module</p>
+            <p class="big">Strategy Intelligence</p>
+            <p class="sub">A research desk that is allowed to say no. Hypotheses are tested against
+            explicit gates, versions are immutable, and nothing reaches a live account without a
+            human typing its name.</p>
+            <div class="meta-row">
+              <div><b>v1.0 · design file</b>25 Oct 2026</div>
+              <div><b>Owner</b>Research engineering</div>
+              <div><b>Surfaces</b>CLI · browser dashboard · HTML report</div>
+              <div><b>Live trading</b>disabled by default</div>
+            </div>
+            <div class="rule"></div>
+            <div class="row" style="gap:34px">
+              <div class="grow">
+                <h3>Contents</h3>
+                <div class="toc">
+                  <div><span>01</span><span>Dashboard · evidence and the paper action</span></div>
+                  <div><span>02</span><span>Dashboard · 390 wide</span></div>
+                  <div><span>03</span><span>3D live market view</span></div>
+                  <div><span>04</span><span>Components and states</span></div>
+                  <div><span>05</span><span>Handoff: tokens, redlines, copy rules</span></div>
+                </div>
+              </div>
+              <div style="width:430px">
+                <h3>Two themes, one rule</h3>
+                <p class="small" style="color:#374151">Evidence screens keep the report's paper theme.
+                The live tape is dark and cinematic — and it is the only screen that can show a price
+                moving. A delayed or simulated feed is labelled on the legend, the card and the row.</p>
+              </div>
+            </div>
+            <div class="rule"></div>
+            <h3>Palette</h3>
+            <div class="swatch-grid">
+              <div class="swatch-card"><div class="fill" style="background:#12161c"></div><div class="meta"><b>ink</b><code>#12161c</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#fbfaf7"></div><div class="meta"><b>paper</b><code>#fbfaf7</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#1f5f8b"></div><div class="meta"><b>accent</b><code>#1f5f8b</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#1c6b46"></div><div class="meta"><b>pass</b><code>#1c6b46</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#8a5a00"></div><div class="meta"><b>caution</b><code>#8a5a00</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#8c2f2f"></div><div class="meta"><b>stop</b><code>#8c2f2f</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#080c12"></div><div class="meta"><b>stage</b><code>#080c12</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#6cc6f5"></div><div class="meta"><b>track 1</b><code>#6cc6f5</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#f2b134"></div><div class="meta"><b>track 2</b><code>#f2b134</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#67d18a"></div><div class="meta"><b>track 3</b><code>#67d18a</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#7cf0b4"></div><div class="meta"><b>live</b><code>#7cf0b4</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#f6cd6b"></div><div class="meta"><b>simulated</b><code>#f6cd6b</code></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 01 dashboard -->
+      <section class="artboard" id="ab-dashboard">
+        <header>
+          <span class="label">01 · Dashboard</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">Data is the real preview store: champion V01, 3 hypotheses all rejected, one paper session.</span>
+        </header>
+        <div class="frame selectable evidence" id="dashboard" style="width:1440px">
+          <div class="sheet">
+
+            <div class="row between" id="nav" style="border-bottom:2px solid var(--ink);padding-bottom:11px;margin-bottom:18px">
+              <div>
+                <p class="eyebrow">Research dashboard</p>
+                <h1>Strategy Intelligence</h1>
+                <p class="small muted">SYNTH · 1d · sample 2015-01-02 → 2021-07-08 · evidence as of 2026-10-25 16:44Z</p>
+              </div>
+              <div class="row" style="gap:8px;align-items:center;padding-top:6px">
+                <span class="badge bad">live trading disabled</span>
+                <span class="btn secondary sm">3D live market view →</span>
+              </div>
+            </div>
+
+            <div class="row" style="gap:14px;margin-bottom:14px">
+              <!-- champion -->
+              <div class="panel grow" id="champion">
+                <div class="row between" style="align-items:flex-start">
+                  <div>
+                    <h3>Champion</h3>
+                    <div class="row" style="align-items:baseline;gap:10px">
+                      <span style="font-size:26px;font-weight:700;letter-spacing:-.02em">V01</span>
+                      <span class="badge accent">Paper Testing</span>
+                      <span class="badge neutral">awaiting user approval</span>
+                    </div>
+                    <p class="small muted" style="margin:6px 0 0">Baseline momentum · registered 2026-10-25 ·
+                    4 versions stored, 0 accepted by the gates.</p>
+                  </div>
+                  <div style="text-align:right">
+                    <p class="tiny muted" style="margin:0">Next step</p>
+                    <p class="small" style="margin:2px 0 0;font-weight:600">CLI-only approvals</p>
+                    <p class="tiny muted" style="margin:2px 0 0">the page cannot promote or enable</p>
+                  </div>
+                </div>
+                <div class="rule"></div>
+                <div id="stepper">
+                  <h3 style="margin-bottom:10px">Promotion pipeline</h3>
+                  <ul class="stepper">
+                    <li><span class="pip filled"></span><span class="t">Backtest</span><span class="d">recorded</span></li>
+                    <li><span class="pip filled"></span><span class="t">Out-of-sample</span><span class="d">10 trades · +0.094R</span></li>
+                    <li><span class="pip filled"></span><span class="t">Walk-forward</span><span class="d">4 folds · -0.006R</span></li>
+                    <li><span class="pip filled"></span><span class="t">Robustness</span><span class="d">16 variants · fragile</span></li>
+                    <li><span class="pip filled"></span><span class="t">Paper</span><span class="d">14 trades · +0.678R</span></li>
+                    <li><span class="pip hollow"></span><span class="t">Risk review</span><span class="d">0 blocks recorded</span></li>
+                    <li class="off"><span class="pip current"></span><span class="t">Approval</span><span class="d">waiting on a human</span></li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- run + action -->
+              <div style="width:376px" class="col">
+                <div class="panel tight">
+                  <h3>Last run</h3>
+                  <dl class="rows" style="grid-template-columns:104px 1fr;padding:0">
+                    <dt>when</dt><dd class="num">25 Oct 2026 · 16:44Z</dd>
+                    <dt>hypotheses</dt><dd class="num">3 proposed · 3 rejected</dd>
+                    <dt>cost model</dt><dd class="num">commission + slippage + spread</dd>
+                    <dt>holdout</dt><dd class="num">1 window · 3 of 3 uses</dd>
+                  </dl>
+                </div>
+                <div class="panel">
+                  <h3>Take a paper trade</h3>
+                  <div class="field" style="margin-bottom:10px">
+                    <label>version</label>
+                    <div class="select">V01 — champion <span class="caret">▾</span></div>
+                  </div>
+                  <div class="row" style="gap:10px;margin-bottom:10px">
+                    <div class="field grow">
+                      <label>forward trades to pass</label>
+                      <div class="input num">5</div>
+                    </div>
+                    <div class="field grow">
+                      <label>forward bars to start</label>
+                      <div class="input num">30</div>
+                    </div>
+                  </div>
+                  <p class="hint" style="margin-bottom:11px">Trades the version forward over bars after its
+                  out-of-sample window. No broker, no orders, no capital.</p>
+                  <div class="row between">
+                    <span class="btn">Run paper session</span>
+                    <span class="tiny muted">one session per click</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="kpis" id="kpis" style="margin-bottom:14px">
+              <div class="kpi">
+                <p class="k">Paper expectancy</p>
+                <p class="v up">+0.678<small>R</small></p>
+                <p class="s">14 forward trades · verdict passed</p>
+              </div>
+              <div class="kpi">
+                <p class="k">Out-of-sample</p>
+                <p class="v">+0.094<small>R</small></p>
+                <p class="s">10 trades · below the bar that matters</p>
+              </div>
+              <div class="kpi">
+                <p class="k">Paper net PnL</p>
+                <p class="v up">+4,811.51</p>
+                <p class="s">after costs · 2020-07-01 → 2021-07-08</p>
+              </div>
+              <div class="kpi">
+                <p class="k">Max drawdown</p>
+                <p class="v">1.6<small>%</small></p>
+                <p class="s">paper window · 267 bars</p>
+              </div>
+            </div>
+
+            <!-- verdict -->
+            <div class="verdict stop" id="verdict" style="margin-bottom:14px">
+              <div class="head">
+                <span class="mark">NO TRADE</span>
+                <span class="badge bad">latest candidate rejected</span>
+                <span class="tiny muted">H-20261025-beaac5 · "Losing trades cluster in low-ADX conditions"</span>
+              </div>
+              <p class="why">The gates refused it for six measurable reasons. This is the product
+              working: the engine would rather hold cash than lower the bar.</p>
+              <ul class="gates">
+                <li><span class="g">sample size</span><span class="n fail">12 trades</span></li>
+                <li><span class="g">out-of-sample sample</span><span class="n fail">10 trades</span></li>
+                <li><span class="g">beats baseline</span><span class="n fail">+0.094R</span></li>
+                <li><span class="g">walk-forward consistency</span><span class="n fail">0% of 4 folds · −0.006R</span></li>
+                <li><span class="g">parameter sensitivity</span><span class="n fail">100% fragile · 16 variants</span></li>
+                <li><span class="g">significance</span><span class="n fail">p = 0.9949 · effect −0.02</span></li>
+              </ul>
+            </div>
+
+            <!-- sessions + counts -->
+            <div class="row" style="gap:14px;margin-bottom:14px">
+              <div class="panel flush grow" id="sessions">
+                <div class="panel-head">
+                  <h2>Paper sessions</h2>
+                  <span class="tiny muted">append-only · 1 recorded</span>
+                </div>
+                <table class="grid">
+                  <thead>
+                    <tr>
+                      <th>session</th><th>version</th><th>window</th>
+                      <th class="num">bars</th><th class="num">trades</th>
+                      <th class="num">expectancy</th><th class="num">net</th><th>verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono">PPR-20261025-a01a84</td>
+                      <td>V01</td>
+                      <td class="num">2020-07-01 → 2021-07-08</td>
+                      <td class="num">267</td>
+                      <td class="num">14</td>
+                      <td class="num up">+0.678R</td>
+                      <td class="num up">+4,811.51</td>
+                      <td><span class="badge ok">passed</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="panel-foot">A passing session makes a version eligible for the approval
+                conversation. It approves nothing.</div>
+              </div>
+
+              <div class="panel" id="counts" style="width:392px">
+                <h3>Evidence on file</h3>
+                <div class="row" style="gap:0;align-items:stretch">
+                  <div class="grow" style="border-right:1px solid var(--line);padding-right:14px">
+                    <p class="v num" style="font-size:30px;margin:0;font-weight:650;letter-spacing:-.02em">3</p>
+                    <p class="tiny muted" style="margin:0">hypotheses tested</p>
+                  </div>
+                  <div class="grow" style="padding-left:14px">
+                    <p class="v num" style="font-size:30px;margin:0;font-weight:650;letter-spacing:-.02em">0</p>
+                    <p class="tiny muted" style="margin:0">accepted</p>
+                  </div>
+                </div>
+                <div class="rule"></div>
+                <dl class="rows" style="grid-template-columns:118px 1fr;padding:0">
+                  <dt>versions</dt><dd class="num">4 · V01 champion</dd>
+                  <dt>rejected</dt><dd class="num">3 (all with a named gate)</dd>
+                  <dt>holdout budget</dt><dd class="num">3 of 3 uses, 2019-02-18 → 2020-06-30</dd>
+                  <dt>risk blocks</dt><dd class="num">0</dd>
+                </dl>
+              </div>
+            </div>
+
+            <!-- risk + note -->
+            <div class="row" style="gap:14px">
+              <div class="panel grow" id="risk">
+                <h3>Risk policy · frozen</h3>
+                <div class="kpis three" style="gap:8px">
+                  <div class="kpi" style="border:0;padding:6px 0;background:transparent">
+                    <p class="k">per trade</p><p class="v" style="font-size:20px">1.0<small>%</small></p>
+                  </div>
+                  <div class="kpi" style="border:0;padding:6px 0;background:transparent">
+                    <p class="k">leverage</p><p class="v" style="font-size:20px">1.0<small>×</small></p>
+                  </div>
+                  <div class="kpi" style="border:0;padding:6px 0;background:transparent">
+                    <p class="k">open positions</p><p class="v" style="font-size:20px">1</p>
+                  </div>
+                </div>
+                <p class="hint">A strategy may request a size; the engine caps it and only ever shrinks it.
+                Any change that loosens a limit is refused, and no research output can grant live trading.</p>
+              </div>
+              <div class="panel" style="width:520px">
+                <h3>What this screen will not do</h3>
+                <ul class="small" style="margin:0;padding-left:16px;color:#374151;line-height:1.75">
+                  <li>approve, promote, roll back or change the risk policy (CLI only)</li>
+                  <li>enable live trading, or accept a typed confirmation</li>
+                  <li>place an order: there is no broker in this repository</li>
+                </ul>
+                <p class="hint" style="margin-top:8px">The one action is the paper session above. Everything
+                else is a deliberate command with the champion's version typed out.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 02 mobile -->
+      <section class="artboard" id="ab-mobile">
+        <header>
+          <span class="label">02 · Dashboard · narrow</span>
+          <span class="dims">390 × content</span>
+          <span class="note">Same hierarchy, one column. The verdict stays above the fold; the form collapses to a button.</span>
+        </header>
+        <div class="frame selectable evidence" id="mobile" style="width:390px" data-narrow>
+          <div class="sheet dense" style="padding:20px 18px">
+            <div style="border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:14px">
+              <p class="eyebrow">Research dashboard</p>
+              <h1 style="font-size:22px">Strategy Intelligence</h1>
+              <p class="tiny muted" style="margin:4px 0 8px">SYNTH · 1d · evidence 16:44Z</p>
+              <div class="row" style="gap:6px">
+                <span class="badge bad">live disabled</span>
+                <span class="badge accent">V01 paper testing</span>
+              </div>
+            </div>
+
+            <div class="panel tight" style="margin-bottom:12px">
+              <div class="row between" style="margin-bottom:8px">
+                <h3 style="margin:0">Champion</h3>
+                <span class="small num" style="font-weight:700">V01</span>
+              </div>
+              <ul class="stepper" style="transform:scale(.98);transform-origin:left">
+                <li><span class="pip filled"></span><span class="t">BT</span></li>
+                <li><span class="pip filled"></span><span class="t">OOS</span></li>
+                <li><span class="pip filled"></span><span class="t">WF</span></li>
+                <li><span class="pip filled"></span><span class="t">Rob.</span></li>
+                <li><span class="pip filled"></span><span class="t">Paper</span></li>
+                <li><span class="pip hollow"></span><span class="t">Risk</span></li>
+                <li><span class="pip current"></span><span class="t">Approval</span></li>
+              </ul>
+            </div>
+
+            <div class="verdict stop" style="padding:12px 13px;margin-bottom:12px">
+              <div class="row between" style="margin-bottom:6px">
+                <span class="mark" style="font-size:15px">NO TRADE</span>
+                <span class="badge bad">rejected</span>
+              </div>
+              <p class="tiny" style="color:#4b5563;margin:0 0 7px">Six gates failed. The engine holds cash
+              rather than lower the bar.</p>
+              <ul class="gates" style="grid-template-columns:1fr;gap:0">
+                <li><span class="g" style="min-width:0;flex:1">sample size</span><span class="n fail">12 trades</span></li>
+                <li><span class="g" style="min-width:0;flex:1">out-of-sample</span><span class="n fail">10 trades</span></li>
+                <li><span class="g" style="min-width:0;flex:1">beats baseline</span><span class="n fail">+0.094R</span></li>
+                <li><span class="g" style="min-width:0;flex:1">walk-forward</span><span class="n fail">0% of 4</span></li>
+                <li><span class="g" style="min-width:0;flex:1">sensitivity</span><span class="n fail">100% fragile</span></li>
+                <li><span class="g" style="min-width:0;flex:1">significance</span><span class="n fail">p 0.9949</span></li>
+              </ul>
+            </div>
+
+            <div class="kpis" style="grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+              <div class="kpi" style="padding:9px 11px">
+                <p class="k">paper expectancy</p><p class="v up" style="font-size:20px">+0.678<small>R</small></p>
+              </div>
+              <div class="kpi" style="padding:9px 11px">
+                <p class="k">paper net</p><p class="v up" style="font-size:20px">+4,811</p>
+              </div>
+              <div class="kpi" style="padding:9px 11px">
+                <p class="k">oos expectancy</p><p class="v" style="font-size:20px">+0.094<small>R</small></p>
+              </div>
+              <div class="kpi" style="padding:9px 11px">
+                <p class="k">max dd</p><p class="v" style="font-size:20px">1.6<small>%</small></p>
+              </div>
+            </div>
+
+            <div class="panel flush" style="margin-bottom:12px">
+              <div class="panel-head"><h2 style="font-size:13px">Paper sessions</h2><span class="tiny muted">1</span></div>
+              <div style="padding:11px 13px">
+                <div class="row between" style="margin-bottom:4px">
+                  <span class="mono tiny">PPR-…-a01a84</span>
+                  <span class="badge ok">passed</span>
+                </div>
+                <p class="tiny muted" style="margin:0">2020-07-01 → 2021-07-08 · 14 trades · +4,811.51</p>
+              </div>
+            </div>
+
+            <div class="panel tight" style="margin-bottom:12px">
+              <h3>Run a paper session</h3>
+              <p class="hint" style="margin-bottom:9px">Forward bars only, costs included, no capital at risk.</p>
+              <div class="select" style="margin-bottom:8px">V01 — champion <span class="caret">▾</span></div>
+              <span class="btn" style="width:100%;justify-content:center">Run paper session</span>
+            </div>
+
+            <div class="panel tight">
+              <h3>Evidence on file</h3>
+              <dl class="rows" style="grid-template-columns:96px 1fr;padding:0">
+                <dt>hypotheses</dt><dd class="num">3 · 0 accepted</dd>
+                <dt>versions</dt><dd class="num">4</dd>
+                <dt>holdout</dt><dd class="num">3 of 3 uses</dd>
+                <dt>risk blocks</dt><dd class="num">0</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 03 live -->
+      <section class="artboard" id="ab-live">
+        <header>
+          <span class="label">03 · 3D live market view</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">The scene is rendered from the app's own geometry (docs/design/scene.svg). Feeds here are replay fixtures, so every label reads simulated.</span>
+        </header>
+        <div class="frame selectable market" id="live" style="width:1440px">
+          <div class="sheet">
+            <div class="masthead">
+              <p class="eyebrow">Live market view · 3D</p>
+              <h1 style="color:var(--mink)">Markets in motion</h1>
+              <p class="small muted">3 of 4 feeds up · delayed / simulated · built 2026-10-25 17:31Z · collecting since 17:24Z</p>
+            </div>
+
+            <div class="notice" style="margin-bottom:16px">
+              <b style="color:#eaf3ff">Display only.</b> Nothing on this page reaches a backtest, a paper
+              verdict or a research result. Each feed states what it is — real-time, delayed or simulated —
+              and an unreachable endpoint is reported as unavailable rather than papered over.
+            </div>
+
+            <div class="stage scene" id="stage" style="margin-bottom:14px">
+              <svg id="scene-art" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Three tracks of candles in perspective over a wireframe floor">
+<defs>
+<radialGradient id="glow" cx="20%" cy="0%" r="120%">
+<stop offset="0" stop-color="#16273a"/>
+<stop offset="0.45" stop-color="#0a1018"/>
+<stop offset="1" stop-color="#05080c"/>
+</radialGradient>
+</defs>
+<rect width="1200" height="675" fill="url(#glow)"/>
+<rect width="1200" height="675" fill="rgb(8,12,18)" opacity="0.35"/>
+<g>
+<line x1="453.7" y1="108.6" x2="1761.1" y2="285.7" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="453.7" y1="108.6" x2="-2102.7" y2="780.8" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="415.8" y1="118.6" x2="1818.2" y2="323.5" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="498.0" y1="114.6" x2="-2270.8" y2="912.3" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="373.9" y1="129.6" x2="1888.1" y2="369.9" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="545.0" y1="121.0" x2="-2498.9" y2="1090.6" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="327.2" y1="141.9" x2="1976.0" y2="428.2" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="595.1" y1="127.8" x2="-2826.1" y2="1346.4" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="274.9" y1="155.7" x2="2089.4" y2="503.4" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="648.5" y1="135.0" x2="-3334.8" y2="1744.2" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="215.9" y1="171.2" x2="2241.6" y2="604.3" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="705.7" y1="142.8" x2="-4234.3" y2="2447.4" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="148.9" y1="188.8" x2="2456.5" y2="746.8" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="767.0" y1="151.1" x2="-6255.1" y2="4027.5" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="72.1" y1="209.0" x2="2783.0" y2="963.3" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="832.9" y1="160.0" x2="-14965.8" y2="10838.3" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="-16.9" y1="232.4" x2="3338.5" y2="1331.5" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="-121.1" y1="259.8" x2="4493.6" y2="2097.4" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/><line x1="-244.9" y1="292.3" x2="8358.8" y2="4660.1" stroke="#3f5f7d" stroke-opacity="0.50" stroke-width="1"/>
+</g>
+<g>
+<polygon points="813.7,698.2 835.8,707.8 846.9,640.0 823.6,630.7" fill="#97d1ad"/><polygon points="818.5,718.1 825.8,721.3 842.0,618.1 834.1,615.0" fill="#89bd9d"/><polygon points="695.9,532.0 716.6,539.6 717.3,530.1 696.4,522.6" fill="#80b193"/><polygon points="701.8,549.0 708.6,551.5 711.3,512.7 704.3,510.2" fill="#74a084"/><polygon points="722.5,608.8 743.1,617.1 749.1,552.8 727.6,545.0" fill="#80b193"/><polygon points="727.1,638.1 733.8,640.9 744.5,520.3 737.2,517.7" fill="#74a084"/><polygon points="786.6,697.7 793.6,700.8 801.9,638.4 794.5,635.4" fill="#74a084"/><polygon points="781.4,679.4 802.9,688.7 807.1,657.7 785.2,648.6" fill="#80b193"/><polygon points="752.7,636.2 773.8,644.9 776.8,618.4 755.3,609.9" fill="#80b193"/><polygon points="757.1,663.3 764.0,666.2 772.4,589.6 765.1,586.8" fill="#74a084"/><polygon points="665.3,519.6 685.2,526.9 685.2,526.7 665.3,519.4" fill="#97d1ad"/><polygon points="671.0,541.6 677.6,544.1 679.5,504.0 672.8,501.6" fill="#89bd9d"/><polygon points="870.6,540.7 891.5,547.7 846.9,640.0 823.6,630.7" fill="#aff1c8"/><polygon points="635.4,521.4 654.5,528.5 655.1,510.4 635.8,503.4" fill="#97d1ad"/><polygon points="641.4,537.5 647.7,539.9 649.0,493.7 642.5,491.4" fill="#89bd9d"/><polygon points="880.0,610.9 835.8,707.8 846.9,640.0 891.5,547.7" fill="#92c9a6"/><polygon points="870.6,624.1 825.8,721.3 842.0,618.1 887.6,528.0" fill="#84b697"/><polygon points="613.1,523.0 619.2,525.3 620.1,445.9 613.7,443.8" fill="#74a084"/><polygon points="607.1,498.1 625.7,504.9 626.2,472.4 607.3,465.9" fill="#80b193"/><polygon points="785.3,467.5 804.7,473.6 749.1,552.8 727.6,545.0" fill="#94cda9"/><polygon points="579.2,459.5 597.4,465.8 597.4,461.6 579.1,455.2" fill="#80b193"/><polygon points="585.3,467.6 591.3,469.8 591.3,453.3 585.1,451.2" fill="#74a084"/><polygon points="775.3,463.2 716.6,539.6 717.3,530.1 776.2,454.5" fill="#7baa8d"/><polygon points="757.3,448.7 776.2,454.5 717.3,530.1 696.4,522.6" fill="#94cda9"/><polygon points="835.3,559.5 855.1,566.5 807.1,657.7 785.2,648.6" fill="#94cda9"/><polygon points="767.7,474.6 708.6,551.5 711.3,512.7 771.2,438.9" fill="#6f997f"/><polygon points="797.5,533.0 743.1,617.1 749.1,552.8 804.7,473.6" fill="#7baa8d"/><polygon points="808.9,525.6 828.4,532.2 776.8,618.4 755.3,609.9" fill="#94cda9"/><polygon points="850.4,595.4 802.9,688.7 807.1,657.7 855.1,566.5" fill="#7baa8d"/><polygon points="824.9,556.8 773.8,644.9 776.8,618.4 828.4,532.2" fill="#7baa8d"/><polygon points="788.3,555.5 733.8,640.9 744.5,520.3 801.4,444.1" fill="#6f997f"/><polygon points="841.7,607.3 793.6,700.8 801.9,638.4 850.8,549.0" fill="#6f997f"/><polygon points="815.4,577.1 764.0,666.2 772.4,589.6 825.1,506.0" fill="#6f997f"/><polygon points="746.8,453.2 685.2,526.9 685.2,526.7 746.8,453.0" fill="#92c9a6"/><polygon points="739.2,469.4 677.6,544.1 679.5,504.0 742.3,432.5" fill="#84b697"/><polygon points="728.6,447.3 746.8,453.0 685.2,526.7 665.3,519.4" fill="#aff1c8"/><polygon points="560.3,546.2 565.8,548.5 563.5,440.4 557.6,438.4" fill="#89bd9d"/><polygon points="553.9,515.0 570.9,521.6 570.1,474.5 552.6,468.3" fill="#97d1ad"/><polygon points="718.3,456.3 654.5,528.5 655.1,510.4 719.5,439.6" fill="#92c9a6"/><polygon points="701.8,434.2 719.5,439.6 655.1,510.4 635.8,503.4" fill="#aff1c8"/><polygon points="676.5,401.2 693.9,406.3 626.2,472.4 607.3,465.9" fill="#94cda9"/><polygon points="711.6,467.2 647.7,539.9 649.0,493.7 714.4,424.6" fill="#84b697"/><polygon points="692.3,436.1 625.7,504.9 626.2,472.4 693.9,406.3" fill="#7baa8d"/><polygon points="528.3,496.2 544.8,502.5 542.8,441.3 525.7,435.4" fill="#80b193"/><polygon points="534.2,509.5 539.7,511.6 536.6,427.1 530.9,425.1" fill="#74a084"/><polygon points="685.5,455.2 619.2,525.3 620.1,445.9 689.2,382.3" fill="#6f997f"/><polygon points="501.1,440.0 517.5,445.8 517.4,444.1 501.0,438.3" fill="#97d1ad"/><polygon points="506.9,448.0 512.3,450.0 511.6,436.0 506.1,434.1" fill="#89bd9d"/><polygon points="667.3,401.5 597.4,465.8 597.4,461.6 667.5,397.7" fill="#7baa8d"/><polygon points="661.4,405.5 591.3,469.8 591.3,453.3 662.0,390.3" fill="#6f997f"/><polygon points="650.6,392.7 667.5,397.7 597.4,461.6 579.1,455.2" fill="#94cda9"/><polygon points="476.7,430.6 492.6,436.2 492.2,429.9 476.3,424.3" fill="#97d1ad"/><polygon points="482.6,441.6 487.8,443.5 486.2,418.7 480.9,416.9" fill="#89bd9d"/><polygon points="625.1,405.9 641.3,410.9 570.1,474.5 552.6,468.3" fill="#aff1c8"/><polygon points="601.0,377.0 616.9,381.6 542.8,441.3 525.7,435.4" fill="#94cda9"/><polygon points="460.0,445.8 465.0,447.7 463.8,432.6 458.7,430.8" fill="#89bd9d"/><polygon points="454.4,438.0 469.7,443.6 469.4,440.5 454.2,435.0" fill="#97d1ad"/><polygon points="430.7,418.8 445.5,424.0 442.4,388.8 427.3,383.8" fill="#80b193"/><polygon points="437.4,439.5 442.3,441.3 435.5,366.9 430.4,365.3" fill="#74a084"/><polygon points="640.3,454.3 570.9,521.6 570.1,474.5 641.3,410.9" fill="#92c9a6"/><polygon points="634.4,479.6 565.8,548.5 563.5,440.4 636.5,379.9" fill="#84b697"/><polygon points="616.4,438.0 544.8,502.5 542.8,441.3 616.9,381.6" fill="#7baa8d"/><polygon points="611.1,446.7 539.7,511.6 536.6,427.1 611.6,368.8" fill="#6f997f"/><polygon points="592.8,386.9 517.5,445.8 517.4,444.1 592.8,385.3" fill="#92c9a6"/><polygon points="409.4,418.4 423.8,423.5 418.5,371.6 403.8,366.8" fill="#97d1ad"/><polygon points="414.6,423.8 419.3,425.5 413.1,366.0 408.2,364.4" fill="#89bd9d"/><polygon points="587.7,391.0 512.3,450.0 511.6,436.0 587.6,378.1" fill="#84b697"/><polygon points="577.4,380.8 592.8,385.3 517.4,444.1 501.0,438.3" fill="#aff1c8"/><polygon points="569.5,379.1 492.6,436.2 492.2,429.9 569.4,373.4" fill="#92c9a6"/><polygon points="554.5,369.0 569.4,373.4 492.2,429.9 476.3,424.3" fill="#aff1c8"/><polygon points="564.7,386.1 487.8,443.5 486.2,418.7 564.2,363.3" fill="#84b697"/><polygon points="362.8,368.3 376.5,372.9 372.6,342.1 358.7,337.7" fill="#80b193"/><polygon points="367.7,372.9 372.3,374.4 367.6,337.4 362.9,336.0" fill="#74a084"/><polygon points="337.7,329.1 351.2,333.3 350.9,331.2 337.5,327.0" fill="#80b193"/><polygon points="343.8,341.9 348.3,343.4 344.8,318.2 340.3,316.8" fill="#74a084"/><polygon points="388.8,416.1 402.6,421.2 399.9,396.8 385.8,392.0" fill="#80b193"/><polygon points="394.5,427.7 399.1,429.4 393.9,384.8 389.3,383.2" fill="#74a084"/><polygon points="509.4,333.7 523.7,337.7 442.4,388.8 427.3,383.8" fill="#94cda9"/><polygon points="318.1,325.7 331.2,329.8 329.2,316.2 316.0,312.2" fill="#80b193"/><polygon points="329.0,370.3 333.3,371.8 317.9,268.6 313.4,267.4" fill="#74a084"/><polygon points="547.3,387.0 469.7,443.6 469.4,440.5 547.2,384.2" fill="#92c9a6"/><polygon points="525.1,370.0 445.5,424.0 442.4,388.8 523.7,337.7" fill="#7baa8d"/><polygon points="542.7,391.1 465.0,447.7 463.8,432.6 542.2,377.2" fill="#84b697"/><polygon points="521.1,386.2 442.3,441.3 435.5,366.9 518.1,317.7" fill="#6f997f"/><polygon points="532.9,379.9 547.2,384.2 469.4,440.5 454.2,435.0" fill="#aff1c8"/><polygon points="487.6,318.9 501.6,322.7 418.5,371.6 403.8,366.8" fill="#aff1c8"/><polygon points="303.9,327.6 308.1,329.0 301.6,288.0 297.3,286.8" fill="#89bd9d"/><polygon points="297.0,309.4 309.7,313.3 308.7,306.8 295.9,302.9" fill="#97d1ad"/><polygon points="946.6,333.9 965.5,338.0 976.3,284.3 956.7,280.6" fill="#d9c26f"/><polygon points="951.5,342.2 957.8,343.6 971.2,275.6 964.6,274.4" fill="#caaf64"/><polygon points="504.1,370.6 423.8,423.5 418.5,371.6 501.6,322.7" fill="#92c9a6"/><polygon points="499.8,372.6 419.3,425.5 413.1,366.0 496.7,317.8" fill="#84b697"/><polygon points="445.5,293.8 458.8,297.3 372.6,342.1 358.7,337.7" fill="#94cda9"/><polygon points="918.2,329.5 936.5,333.5 945.7,283.7 926.8,280.1" fill="#bda45e"/><polygon points="924.0,332.0 930.1,333.4 939.5,281.3 933.2,280.1" fill="#ab9455"/><polygon points="280.1,315.5 292.4,319.3 290.7,309.1 278.3,305.2" fill="#97d1ad"/><polygon points="288.7,343.2 292.8,344.6 281.8,280.1 277.7,278.9" fill="#89bd9d"/><polygon points="460.9,325.6 376.5,372.9 372.6,342.1 458.8,297.3" fill="#7baa8d"/><polygon points="456.8,327.2 372.3,374.4 367.6,337.4 454.1,293.2" fill="#6f997f"/><polygon points="438.5,290.0 351.2,333.3 350.9,331.2 438.3,288.1" fill="#7baa8d"/><polygon points="469.0,342.9 482.3,346.8 399.9,396.8 385.8,392.0" fill="#94cda9"/><polygon points="435.1,299.4 348.3,343.4 344.8,318.2 433.0,276.3" fill="#6f997f"/><polygon points="483.8,369.3 402.6,421.2 399.9,396.8 482.3,346.8" fill="#7baa8d"/><polygon points="425.4,284.7 438.3,288.1 350.9,331.2 337.5,327.0" fill="#94cda9"/><polygon points="480.0,377.2 399.1,429.4 393.9,384.8 477.2,336.0" fill="#6f997f"/><polygon points="888.6,338.0 906.2,342.0 918.4,269.5 900.0,266.1" fill="#d9c26f"/><polygon points="893.9,342.6 899.7,343.9 912.8,264.8 906.7,263.7" fill="#caaf64"/><polygon points="419.1,287.5 331.2,329.8 329.2,316.2 417.9,275.1" fill="#7baa8d"/><polygon points="405.3,271.8 417.9,275.1 329.2,316.2 316.0,312.2" fill="#94cda9"/><polygon points="981.2,243.4 998.9,246.4 976.3,284.3 956.7,280.6" fill="#fbe080"/><polygon points="418.9,326.4 333.3,371.8 317.9,268.6 409.5,231.6" fill="#6f997f"/><polygon points="399.1,273.0 309.7,313.3 308.7,306.8 398.4,267.0" fill="#92c9a6"/><polygon points="988.6,295.8 965.5,338.0 976.3,284.3 998.9,246.4" fill="#d1ba6b"/><polygon points="386.2,263.9 398.4,267.0 308.7,306.8 295.9,302.9" fill="#aff1c8"/><polygon points="396.7,287.6 308.1,329.0 301.6,288.0 392.6,250.0" fill="#84b697"/><polygon points="981.5,301.1 957.8,343.6 971.2,275.6 994.4,238.6" fill="#c2a961"/><polygon points="281.0,395.4 284.8,396.9 265.9,290.8 261.9,289.6" fill="#89bd9d"/><polygon points="270.5,357.5 282.2,361.6 276.9,331.7 265.1,327.7" fill="#97d1ad"/><polygon points="953.8,243.6 971.0,246.5 945.7,283.7 926.8,280.1" fill="#dbbe6d"/><polygon points="861.5,337.6 878.5,341.5 883.5,308.9 866.1,305.2" fill="#bda45e"/><polygon points="861.2,379.5 866.7,380.9 884.3,263.5 878.4,262.4" fill="#ab9455"/><polygon points="962.1,292.3 936.5,333.5 945.7,283.7 971.0,246.5" fill="#b69e5a"/><polygon points="929.4,231.3 946.3,234.1 918.4,269.5 900.0,266.1" fill="#fbe080"/><polygon points="381.7,279.3 292.4,319.3 290.7,309.1 380.6,269.8" fill="#92c9a6"/><polygon points="956.3,292.3 930.1,333.4 939.5,281.3 965.5,244.4" fill="#a48e52"/><polygon points="838.2,314.8 855.0,318.5 857.8,297.8 840.8,294.3" fill="#d9c26f"/><polygon points="841.8,330.8 847.3,332.0 854.2,281.3 848.5,280.2" fill="#caaf64"/><polygon points="368.7,266.7 380.6,269.8 290.7,309.1 278.3,305.2" fill="#aff1c8"/><polygon points="380.7,302.7 292.8,344.6 281.8,280.1 373.6,243.3" fill="#84b697"/><polygon points="934.2,300.8 906.2,342.0 918.4,269.5 946.3,234.1" fill="#d1ba6b"/><polygon points="928.3,302.8 899.7,343.9 912.8,264.8 941.2,229.9" fill="#c2a961"/><polygon points="354.3,288.1 365.8,291.3 276.9,331.7 265.1,327.7" fill="#aff1c8"/><polygon points="266.5,421.4 277.5,425.8 266.4,366.1 255.1,362.0" fill="#97d1ad"/><polygon points="270.2,423.3 273.9,424.8 262.5,364.3 258.8,362.9" fill="#89bd9d"/><polygon points="369.3,318.9 282.2,361.6 276.9,331.7 365.8,291.3" fill="#92c9a6"/><polygon points="897.8,267.9 913.8,270.9 883.5,308.9 866.1,305.2" fill="#dbbe6d"/><polygon points="369.8,351.8 284.8,396.9 265.9,290.8 357.3,253.8" fill="#84b697"/><polygon points="908.8,301.0 878.5,341.5 883.5,308.9 913.8,270.9" fill="#b69e5a"/><polygon points="897.3,337.7 866.7,380.9 884.3,263.5 915.1,229.2" fill="#a48e52"/><polygon points="804.3,385.9 819.9,390.0 828.2,323.1 812.0,319.4" fill="#d9c26f"/><polygon points="807.5,403.4 812.7,404.8 824.9,304.0 819.4,302.9" fill="#caaf64"/><polygon points="874.5,258.4 890.2,261.3 857.8,297.8 840.8,294.3" fill="#fbe080"/><polygon points="887.3,280.4 855.0,318.5 857.8,297.8 890.2,261.3" fill="#d1ba6b"/><polygon points="880.0,293.0 847.3,332.0 854.2,281.3 887.1,246.1" fill="#c2a961"/><polygon points="342.4,320.5 353.4,323.8 266.4,366.1 255.1,362.0" fill="#aff1c8"/><polygon points="253.1,430.3 263.8,434.7 262.6,428.7 251.9,424.3" fill="#97d1ad"/><polygon points="259.5,446.4 263.1,447.9 256.1,412.2 252.5,410.8" fill="#89bd9d"/><polygon points="847.4,282.2 862.4,285.2 828.2,323.1 812.0,319.4" fill="#fbe080"/><polygon points="779.7,392.6 794.8,396.6 797.5,372.1 782.2,368.1" fill="#d9c26f"/><polygon points="781.8,421.3 786.8,422.7 795.5,341.7 790.3,340.4" fill="#caaf64"/><polygon points="360.9,379.4 277.5,425.8 266.4,366.1 353.4,323.8" fill="#92c9a6"/><polygon points="357.3,378.6 273.9,424.8 262.5,364.3 349.7,322.3" fill="#84b697"/><polygon points="853.7,347.3 819.9,390.0 828.2,323.1 862.4,285.2" fill="#d1ba6b"/><polygon points="242.0,447.3 252.4,451.8 247.3,427.0 236.9,422.7" fill="#97d1ad"/><polygon points="247.3,457.7 250.7,459.2 241.9,416.3 238.4,414.9" fill="#89bd9d"/><polygon points="846.8,361.4 812.7,404.8 824.9,304.0 859.6,267.7" fill="#c2a961"/><polygon points="756.6,393.8 771.2,397.8 774.0,369.0 759.1,365.1" fill="#d9c26f"/><polygon points="761.2,398.0 766.0,399.4 769.3,364.7 764.3,363.4" fill="#caaf64"/><polygon points="734.2,395.0 748.4,399.0 751.7,359.4 737.2,355.7" fill="#bda45e"/><polygon points="738.4,403.0 743.1,404.3 747.4,351.1 742.6,349.9" fill="#ab9455"/><polygon points="225.9,437.4 236.0,441.7 234.4,434.4 224.3,430.1" fill="#97d1ad"/><polygon points="230.6,445.3 234.0,446.7 229.6,426.4 226.2,424.9" fill="#89bd9d"/><polygon points="346.7,388.5 263.8,434.7 262.6,428.7 345.8,382.8" fill="#92c9a6"/><polygon points="335.4,379.1 345.8,382.8 262.6,428.7 251.9,424.3" fill="#aff1c8"/><polygon points="345.2,400.9 263.1,447.9 256.1,412.2 340.3,367.6" fill="#84b697"/><polygon points="713.9,375.0 727.8,378.8 729.1,361.0 715.0,357.3" fill="#d9c26f"/><polygon points="717.8,387.3 722.4,388.6 725.2,348.3 720.5,347.1" fill="#caaf64"/><polygon points="818.9,328.0 833.1,331.3 797.5,372.1 782.2,368.1" fill="#fbe080"/><polygon points="694.4,343.6 708.2,347.1 708.2,346.2 694.4,342.6" fill="#d9c26f"/><polygon points="698.9,345.9 703.5,347.1 703.7,343.8 699.1,342.6" fill="#caaf64"/><polygon points="830.2,354.2 794.8,396.6 797.5,372.1 833.1,331.3" fill="#d1ba6b"/><polygon points="822.3,378.7 786.8,422.7 795.5,341.7 831.7,303.1" fill="#c2a961"/><polygon points="217.5,460.8 227.3,465.2 220.1,432.5 210.2,428.2" fill="#97d1ad"/><polygon points="222.2,468.4 225.4,469.9 215.3,424.6 212.0,423.2" fill="#89bd9d"/><polygon points="320.5,378.4 330.7,382.0 247.3,427.0 236.9,422.7" fill="#aff1c8"/><polygon points="797.3,325.8 811.2,329.0 774.0,369.0 759.1,365.1" fill="#fbe080"/><polygon points="334.2,405.2 252.4,451.8 247.3,427.0 330.7,382.0" fill="#92c9a6"/><polygon points="808.1,356.0 771.2,397.8 774.0,369.0 811.2,329.0" fill="#d1ba6b"/><polygon points="332.1,412.3 250.7,459.2 241.9,416.3 326.0,372.1" fill="#84b697"/><polygon points="803.2,357.5 766.0,399.4 769.3,364.7 806.9,325.2" fill="#c2a961"/><polygon points="776.9,317.5 790.5,320.6 751.7,359.4 737.2,355.7" fill="#dbbe6d"/><polygon points="671.8,385.5 684.9,389.3 687.0,345.5 673.6,342.0" fill="#d9c26f"/><polygon points="675.9,391.9 680.3,393.1 682.8,338.9 678.3,337.8" fill="#caaf64"/><polygon points="786.6,357.7 748.4,399.0 751.7,359.4 790.5,320.6" fill="#b69e5a"/><polygon points="318.4,396.4 236.0,441.7 234.4,434.4 317.3,389.5" fill="#92c9a6"/><polygon points="307.5,385.9 317.3,389.5 234.4,434.4 224.3,430.1" fill="#aff1c8"/><polygon points="781.6,362.8 743.1,404.3 747.4,351.1 786.6,313.1" fill="#a48e52"/><polygon points="316.1,401.3 234.0,446.7 229.6,426.4 313.0,382.2" fill="#84b697"/><polygon points="614.6,325.1 627.2,328.3 628.1,265.6 615.1,262.8" fill="#bda45e"/><polygon points="618.8,328.6 622.9,329.7 623.8,262.0 619.5,261.1" fill="#ab9455"/><polygon points="633.7,335.5 646.5,338.8 646.9,322.6 634.0,319.4" fill="#d9c26f"/><polygon points="637.7,352.1 641.9,353.2 643.0,305.5 638.6,304.4" fill="#caaf64"/><polygon points="756.0,319.6 769.2,322.7 729.1,361.0 715.0,357.3" fill="#fbe080"/><polygon points="767.7,339.3 727.8,378.8 729.1,361.0 769.2,322.7" fill="#d1ba6b"/><polygon points="749.8,310.3 708.2,347.1 708.2,346.2 749.9,309.4" fill="#d1ba6b"/><polygon points="762.4,348.6 722.4,388.6 725.2,348.3 765.8,311.0" fill="#c2a961"/><polygon points="209.5,481.9 218.8,486.3 213.5,462.9 204.0,458.6" fill="#97d1ad"/><polygon points="214.1,489.9 217.2,491.4 208.8,454.6 205.6,453.2" fill="#89bd9d"/><polygon points="745.4,310.3 703.5,347.1 703.7,343.8 745.6,307.3" fill="#c2a961"/><polygon points="652.0,386.6 664.7,390.3 666.0,354.6 653.0,351.2" fill="#bda45e"/><polygon points="656.1,392.2 660.3,393.4 661.8,348.9 657.5,347.7" fill="#ab9455"/><polygon points="736.9,306.4 749.9,309.4 708.2,346.2 694.4,342.6" fill="#fbe080"/><polygon points="293.4,384.9 303.0,388.4 220.1,432.5 210.2,428.2" fill="#aff1c8"/><polygon points="595.9,332.2 608.1,335.4 608.4,264.3 595.8,261.5" fill="#d9c26f"/><polygon points="600.0,348.7 604.0,349.8 604.2,246.5 600.0,245.6" fill="#caaf64"/><polygon points="577.6,314.6 589.5,317.7 589.0,233.2 576.6,230.7" fill="#bda45e"/><polygon points="581.9,349.6 585.8,350.6 584.6,193.7 580.3,193.0" fill="#ab9455"/><polygon points="308.2,419.1 227.3,465.2 220.1,432.5 303.0,388.4" fill="#92c9a6"/><polygon points="306.0,423.7 225.4,469.9 215.3,424.6 298.8,381.1" fill="#84b697"/><polygon points="130.9,397.8 133.7,399.0 118.1,340.3 115.2,339.2" fill="#74a084"/><polygon points="124.0,381.5 132.5,385.1 125.2,357.4 116.6,353.9" fill="#80b193"/><polygon points="717.2,306.4 729.8,309.3 687.0,345.5 673.6,342.0" fill="#fbe080"/><polygon points="663.6,233.7 675.8,236.1 628.1,265.6 615.1,262.8" fill="#dbbe6d"/><polygon points="144.8,416.4 153.5,420.3 145.3,388.4 136.5,384.8" fill="#80b193"/><polygon points="151.8,433.4 154.6,434.7 138.0,370.6 135.1,369.4" fill="#74a084"/><polygon points="727.0,350.3 684.9,389.3 687.0,345.5 729.8,309.3" fill="#d1ba6b"/><polygon points="200.5,496.6 209.6,501.0 205.3,482.6 196.1,478.2" fill="#97d1ad"/><polygon points="204.0,499.8 207.0,501.3 201.8,479.3 198.7,477.8" fill="#89bd9d"/><polygon points="559.7,313.6 571.4,316.6 570.3,245.9 558.2,243.3" fill="#d9c26f"/><polygon points="563.6,316.4 567.5,317.4 566.2,243.0 562.2,242.2" fill="#caaf64"/><polygon points="722.5,354.0 680.3,393.1 682.8,338.9 725.9,303.2" fill="#c2a961"/><polygon points="166.1,453.7 174.9,457.8 167.9,429.9 159.0,425.9" fill="#80b193"/><polygon points="171.2,463.6 174.1,465.0 162.7,419.6 159.7,418.3" fill="#74a084"/><polygon points="627.6,204.6 639.4,206.7 589.0,233.2 576.6,230.7" fill="#dbbe6d"/><polygon points="1009.0,214.3 1024.2,216.5 1026.1,207.8 1010.8,205.6" fill="#83adbe"/><polygon points="1011.2,228.3 1016.2,229.1 1023.9,193.5 1018.8,192.8" fill="#769cac"/><polygon points="673.5,294.7 627.2,328.3 628.1,265.6 675.8,236.1" fill="#b69e5a"/><polygon points="645.2,233.0 657.1,235.3 608.4,264.3 595.8,261.5" fill="#fbe080"/><polygon points="669.4,296.1 622.9,329.7 623.8,262.0 671.8,232.9" fill="#a48e52"/><polygon points="680.2,286.1 692.4,288.8 646.9,322.6 634.0,319.4" fill="#fbe080"/><polygon points="691.6,304.0 646.5,338.8 646.9,322.6 692.4,288.8" fill="#d1ba6b"/><polygon points="185.7,484.9 194.6,489.2 190.6,472.8 181.7,468.5" fill="#80b193"/><polygon points="190.7,494.7 193.7,496.1 185.5,462.7 182.5,461.3" fill="#74a084"/><polygon points="285.2,414.1 294.5,417.7 213.5,462.9 204.0,458.6" fill="#aff1c8"/><polygon points="697.5,315.4 709.8,318.3 666.0,354.6 653.0,351.2" fill="#dbbe6d"/><polygon points="686.9,317.6 641.9,353.2 643.0,305.5 689.0,272.9" fill="#c2a961"/><polygon points="298.3,439.7 218.8,486.3 213.5,462.9 294.5,417.7" fill="#92c9a6"/><polygon points="296.4,444.7 217.2,491.4 208.8,454.6 290.2,410.0" fill="#84b697"/><polygon points="707.8,351.8 664.7,390.3 666.0,354.6 709.8,318.3" fill="#b69e5a"/><polygon points="703.5,354.8 660.3,393.4 661.8,348.9 705.9,313.0" fill="#a48e52"/><polygon points="655.1,301.8 608.1,335.4 608.4,264.3 657.1,235.3" fill="#d1ba6b"/><polygon points="637.8,285.6 589.5,317.7 589.0,233.2 639.4,206.7" fill="#b69e5a"/><polygon points="984.4,220.2 999.1,222.5 999.8,219.1 985.0,216.8" fill="#9bccd9"/><polygon points="981.4,260.1 986.2,260.9 1003.2,177.3 998.2,176.6" fill="#8cb8cb"/><polygon points="650.9,315.3 604.0,349.8 604.2,246.5 653.5,218.8" fill="#c2a961"/><polygon points="609.8,216.7 621.3,218.8 570.3,245.9 558.2,243.3" fill="#fbe080"/><polygon points="633.5,316.6 585.8,350.6 584.6,193.7 636.1,170.1" fill="#a48e52"/><polygon points="203.6,318.5 212.1,321.4 125.2,357.4 116.6,353.9" fill="#94cda9"/><polygon points="221.7,346.9 230.4,350.0 145.3,388.4 136.5,384.8" fill="#94cda9"/><polygon points="217.6,347.4 132.5,385.1 125.2,357.4 212.1,321.4" fill="#7baa8d"/><polygon points="217.8,360.6 133.7,399.0 118.1,340.3 206.1,305.5" fill="#6f997f"/><polygon points="236.5,380.0 153.5,420.3 145.3,388.4 230.4,350.0" fill="#7baa8d"/><polygon points="542.5,316.9 553.9,319.9 553.8,318.3 542.5,315.3" fill="#d9c26f"/><polygon points="546.3,320.1 550.1,321.1 550.0,315.0 546.2,314.0" fill="#caaf64"/><polygon points="236.7,393.7 154.6,434.7 138.0,370.6 224.2,333.4" fill="#6f997f"/><polygon points="275.9,433.2 284.9,436.9 205.3,482.6 196.1,478.2" fill="#aff1c8"/><polygon points="241.7,385.1 250.5,388.4 167.9,429.9 159.0,425.9" fill="#94cda9"/><polygon points="288.1,454.3 209.6,501.0 205.3,482.6 284.9,436.9" fill="#92c9a6"/><polygon points="620.5,285.0 571.4,316.6 570.3,245.9 621.3,218.8" fill="#d1ba6b"/><polygon points="285.4,454.8 207.0,501.3 201.8,479.3 281.6,433.9" fill="#84b697"/><polygon points="255.7,414.8 174.9,457.8 167.9,429.9 250.5,388.4" fill="#7baa8d"/><polygon points="616.8,285.8 567.5,317.4 566.2,243.0 617.4,216.3" fill="#c2a961"/><polygon points="1038.0,192.5 1024.2,216.5 1026.1,207.8 1039.8,184.4" fill="#7ea6b7"/><polygon points="254.4,421.7 174.1,465.0 162.7,419.6 245.9,378.9" fill="#6f997f"/><polygon points="1025.6,182.5 1039.8,184.4 1026.1,207.8 1010.8,205.6" fill="#98c8dc"/><polygon points="1030.5,204.3 1016.2,229.1 1023.9,193.5 1037.9,171.1" fill="#7296a5"/><polygon points="261.9,424.7 270.7,428.3 190.6,472.8 181.7,468.5" fill="#94cda9"/><polygon points="273.6,443.8 194.6,489.2 190.6,472.8 270.7,428.3" fill="#7baa8d"/><polygon points="272.2,450.5 193.7,496.1 185.5,462.7 266.1,418.9" fill="#6f997f"/><polygon points="526.7,342.5 537.6,345.6 536.3,305.5 525.1,302.6" fill="#d9c26f"/><polygon points="531.1,363.8 534.7,364.8 531.7,282.9 528.0,282.0" fill="#caaf64"/><polygon points="950.3,280.6 964.2,283.2 974.9,228.0 960.5,225.7" fill="#9bccd9"/><polygon points="951.8,297.8 956.4,298.7 973.5,209.6 968.6,208.8" fill="#8cb8cb"/><polygon points="1014.7,198.3 999.1,222.5 999.8,219.1 1015.4,195.1" fill="#95c4d1"/><polygon points="1002.4,234.3 986.2,260.9 1003.2,177.3 1018.7,156.3" fill="#87b1c3"/><polygon points="1001.6,193.2 1015.4,195.1 999.8,219.1 985.0,216.8" fill="#b3ebfb"/><polygon points="603.7,288.4 553.9,319.9 553.8,318.3 603.7,286.9" fill="#d1ba6b"/><polygon points="600.0,289.7 550.1,321.1 550.0,315.0 600.0,283.9" fill="#c2a961"/><polygon points="592.8,284.4 603.7,286.9 553.8,318.3 542.5,315.3" fill="#fbe080"/><polygon points="510.9,350.1 521.6,353.2 521.1,342.0 510.4,339.0" fill="#d9c26f"/><polygon points="515.1,363.7 518.6,364.7 516.9,328.1 513.3,327.1" fill="#caaf64"/><polygon points="930.1,299.4 934.6,300.3 943.3,251.6 938.7,250.8" fill="#8cb8cb"/><polygon points="927.6,287.4 941.1,290.0 945.8,264.0 932.1,261.5" fill="#9bccd9"/><polygon points="978.7,201.8 992.1,203.8 974.9,228.0 960.5,225.7" fill="#b3ebfb"/><polygon points="576.5,272.9 587.1,275.3 536.3,305.5 525.1,302.6" fill="#fbe080"/><polygon points="587.4,313.0 537.6,345.6 536.3,305.5 587.1,275.3" fill="#d1ba6b"/><polygon points="584.1,331.2 534.7,364.8 531.7,282.9 583.4,254.2" fill="#c2a961"/><polygon points="981.7,255.5 964.2,283.2 974.9,228.0 992.1,203.8" fill="#95c4d1"/><polygon points="974.3,270.1 956.4,298.7 973.5,209.6 990.9,186.6" fill="#87b1c3"/><polygon points="904.1,330.0 908.4,330.9 921.2,255.2 916.7,254.4" fill="#8cb8cb"/><polygon points="902.0,315.7 915.0,318.5 923.2,270.3 909.9,267.8" fill="#9bccd9"/><polygon points="497.7,392.3 507.9,395.6 506.3,366.6 496.0,363.5" fill="#d9c26f"/><polygon points="501.4,398.2 504.7,399.3 502.6,360.5 499.2,359.5" fill="#caaf64"/><polygon points="951.9,235.7 964.7,237.8 945.8,264.0 932.1,261.5" fill="#b3ebfb"/><polygon points="571.7,320.6 521.6,353.2 521.1,342.0 571.5,310.0" fill="#d1ba6b"/><polygon points="561.3,307.5 571.5,310.0 521.1,342.0 510.4,339.0" fill="#fbe080"/><polygon points="960.1,262.2 941.1,290.0 945.8,264.0 964.7,237.8" fill="#95c4d1"/><polygon points="568.5,331.6 518.6,364.7 516.9,328.1 567.9,297.1" fill="#c2a961"/><polygon points="953.9,271.9 934.6,300.3 943.3,251.6 962.5,226.2" fill="#87b1c3"/><polygon points="931.0,241.8 943.5,244.0 923.2,270.3 909.9,267.8" fill="#b3ebfb"/><polygon points="483.7,406.4 493.6,409.6 491.9,382.7 482.0,379.5" fill="#d9c26f"/><polygon points="487.9,420.6 491.1,421.8 487.7,367.8 484.4,366.8" fill="#caaf64"/><polygon points="877.9,342.6 890.3,345.5 896.3,307.9 883.6,305.3" fill="#9bccd9"/><polygon points="880.7,352.2 884.8,353.1 893.5,298.0 889.2,297.2" fill="#8cb8cb"/><polygon points="935.3,289.4 915.0,318.5 923.2,270.3 943.5,244.0" fill="#95c4d1"/><polygon points="929.1,301.1 908.4,330.9 921.2,255.2 941.7,229.9" fill="#87b1c3"/><polygon points="546.8,330.9 556.6,333.6 506.3,366.6 496.0,363.5" fill="#fbe080"/><polygon points="557.3,361.0 507.9,395.6 506.3,366.6 556.6,333.6" fill="#d1ba6b"/><polygon points="554.1,364.7 504.7,399.3 502.6,360.5 553.2,328.0" fill="#c2a961"/><polygon points="858.6,342.3 870.8,345.1 872.1,336.1 859.9,333.3" fill="#83adbe"/><polygon points="861.2,353.0 865.3,354.0 869.5,325.1 865.4,324.2" fill="#769cac"/><polygon points="329.3,226.5 337.9,228.6 333.5,196.1 324.8,194.2" fill="#bda45e"/><polygon points="332.5,229.1 335.3,229.8 330.3,193.5 327.4,192.9" fill="#ab9455"/><polygon points="469.9,413.8 479.5,417.1 479.4,416.5 469.9,413.3" fill="#d9c26f"/><polygon points="473.4,419.4 476.6,420.5 475.9,410.9 472.7,409.8" fill="#caaf64"/><polygon points="454.9,401.6 464.3,404.8 463.0,387.2 453.5,384.1" fill="#bda45e"/><polygon points="458.3,405.6 461.4,406.7 459.5,383.2 456.4,382.1" fill="#ab9455"/><polygon points="905.9,277.5 917.9,279.8 896.3,307.9 883.6,305.3" fill="#b3ebfb"/><polygon points="345.3,250.6 354.0,252.8 352.1,237.8 343.3,235.7" fill="#bda45e"/><polygon points="350.5,268.5 353.3,269.2 346.8,219.3 343.9,218.7" fill="#ab9455"/><polygon points="313.3,202.1 321.8,204.0 320.9,197.5 312.4,195.7" fill="#d9c26f"/><polygon points="317.1,209.6 319.9,210.2 317.0,190.0 314.2,189.4" fill="#caaf64"/><polygon points="532.6,346.5 542.2,349.3 491.9,382.7 482.0,379.5" fill="#fbe080"/><polygon points="839.4,345.6 851.2,348.4 853.6,331.3 841.6,328.6" fill="#9bccd9"/><polygon points="842.1,355.9 846.0,356.8 850.9,320.8 846.9,319.9" fill="#8cb8cb"/><polygon points="543.0,374.8 493.6,409.6 491.9,382.7 542.2,349.3" fill="#d1ba6b"/><polygon points="911.9,315.2 890.3,345.5 896.3,307.9 917.9,279.8" fill="#95c4d1"/><polygon points="440.6,395.1 449.8,398.2 448.3,380.8 439.0,377.8" fill="#d9c26f"/><polygon points="444.3,403.3 447.4,404.3 444.6,372.5 441.5,371.5" fill="#caaf64"/><polygon points="540.3,386.4 491.1,421.8 487.7,367.8 538.6,335.3" fill="#c2a961"/><polygon points="906.6,322.5 884.8,353.1 893.5,298.0 915.3,270.5" fill="#87b1c3"/><polygon points="410.2,359.2 419.2,362.0 416.9,338.3 407.7,335.5" fill="#bda45e"/><polygon points="414.7,374.2 417.7,375.2 412.3,322.6 409.2,321.7" fill="#ab9455"/><polygon points="364.7,302.0 373.4,304.5 368.4,263.6 359.6,261.3" fill="#bda45e"/><polygon points="369.4,316.9 372.2,317.7 363.6,247.9 360.6,247.1" fill="#ab9455"/><polygon points="426.8,392.0 435.9,395.1 433.9,373.3 424.7,370.4" fill="#bda45e"/><polygon points="430.1,395.3 433.1,396.3 430.6,370.0 427.5,369.0" fill="#ab9455"/><polygon points="387.0,357.4 389.9,358.3 382.2,292.4 379.2,291.6" fill="#ab9455"/><polygon points="383.1,348.0 391.8,350.8 386.2,302.2 377.3,299.7" fill="#bda45e"/><polygon points="820.4,351.1 831.9,353.9 832.0,353.7 820.4,350.9" fill="#9bccd9"/><polygon points="822.3,367.3 826.1,368.3 830.1,337.2 826.2,336.3" fill="#8cb8cb"/><polygon points="385.3,174.7 393.8,176.3 333.5,196.1 324.8,194.2" fill="#dbbe6d"/><polygon points="396.5,353.1 405.3,356.0 405.3,355.1 396.4,352.3" fill="#d9c26f"/><polygon points="400.2,360.7 403.1,361.7 401.6,347.5 398.6,346.5" fill="#caaf64"/><polygon points="893.5,315.2 870.8,345.1 872.1,336.1 894.8,306.7" fill="#7ea6b7"/><polygon points="883.3,304.2 894.8,306.7 872.1,336.1 859.9,333.3" fill="#98c8dc"/><polygon points="888.2,323.7 865.3,354.0 869.5,325.1 892.5,296.3" fill="#7296a5"/><polygon points="397.0,206.9 337.9,228.6 333.5,196.1 393.8,176.3" fill="#b69e5a"/><polygon points="504.8,351.6 514.0,354.3 463.0,387.2 453.5,384.1" fill="#dbbe6d"/><polygon points="529.1,382.3 479.5,417.1 479.4,416.5 529.1,381.7" fill="#d1ba6b"/><polygon points="514.8,371.0 464.3,404.8 463.0,387.2 514.0,354.3" fill="#b69e5a"/><polygon points="394.4,208.1 335.3,229.8 330.3,193.5 390.8,174.0" fill="#a48e52"/><polygon points="526.2,385.6 476.6,420.5 475.9,410.9 525.8,376.4" fill="#c2a961"/><polygon points="519.9,378.9 529.1,381.7 479.4,416.5 469.9,413.3" fill="#fbe080"/><polygon points="511.8,372.9 461.4,406.7 459.5,383.2 510.7,350.6" fill="#a48e52"/><polygon points="402.0,213.5 410.5,215.3 352.1,237.8 343.3,235.7" fill="#dbbe6d"/><polygon points="411.9,229.5 354.0,252.8 352.1,237.8 410.5,215.3" fill="#b69e5a"/><polygon points="382.0,184.0 321.8,204.0 320.9,197.5 381.3,177.9" fill="#d1ba6b"/><polygon points="802.1,354.5 813.4,357.3 814.8,345.7 803.4,343.0" fill="#9bccd9"/><polygon points="805.0,363.2 808.8,364.1 811.9,336.9 808.1,336.0" fill="#8cb8cb"/><polygon points="417.0,237.4 425.6,239.4 368.4,263.6 359.6,261.3" fill="#dbbe6d"/><polygon points="866.1,300.1 877.4,302.5 853.6,331.3 841.6,328.6" fill="#b3ebfb"/><polygon points="373.0,176.3 381.3,177.9 320.9,197.5 312.4,195.7" fill="#fbe080"/><polygon points="410.7,245.1 353.3,269.2 346.8,219.3 406.0,198.0" fill="#a48e52"/><polygon points="380.0,189.9 319.9,210.2 317.0,190.0 377.8,170.9" fill="#c2a961"/><polygon points="874.9,318.7 851.2,348.4 853.6,331.3 877.4,302.5" fill="#95c4d1"/><polygon points="490.9,346.0 499.9,348.7 448.3,380.8 439.0,377.8" fill="#fbe080"/><polygon points="461.7,306.7 470.5,309.1 416.9,338.3 407.7,335.5" fill="#dbbe6d"/><polygon points="869.9,326.7 846.0,356.8 850.9,320.8 874.9,292.6" fill="#87b1c3"/><polygon points="500.8,365.2 449.8,398.2 448.3,380.8 499.9,348.7" fill="#d1ba6b"/><polygon points="498.2,371.1 447.4,404.3 444.6,372.5 496.5,340.8" fill="#c2a961"/><polygon points="472.1,331.6 419.2,362.0 416.9,338.3 470.5,309.1" fill="#b69e5a"/><polygon points="429.1,278.1 373.4,304.5 368.4,263.6 425.6,239.4" fill="#b69e5a"/><polygon points="433.1,273.4 441.7,275.6 386.2,302.2 377.3,299.7" fill="#dbbe6d"/><polygon points="470.1,344.1 417.7,375.2 412.3,322.6 466.6,294.3" fill="#a48e52"/><polygon points="427.5,290.6 372.2,317.7 363.6,247.9 421.5,224.7" fill="#a48e52"/><polygon points="477.2,339.3 486.0,341.9 433.9,373.3 424.7,370.4" fill="#dbbe6d"/><polygon points="754.7,312.8 765.5,315.3 766.4,305.2 755.5,302.8" fill="#83adbe"/><polygon points="757.7,320.8 761.3,321.6 763.4,297.1 759.8,296.3" fill="#769cac"/><polygon points="784.8,354.5 795.8,357.2 796.2,353.7 785.1,351.0" fill="#9bccd9"/><polygon points="787.7,362.0 791.4,363.0 793.2,346.1 789.5,345.2" fill="#8cb8cb"/><polygon points="487.3,362.6 435.9,395.1 433.9,373.3 486.0,341.9" fill="#b69e5a"/><polygon points="723.2,291.8 733.8,294.1 737.2,246.2 726.4,244.1" fill="#83adbe"/><polygon points="726.5,296.8 730.0,297.6 733.9,241.0 730.3,240.3" fill="#769cac"/><polygon points="768.7,344.9 779.5,347.6 781.9,323.5 770.9,320.9" fill="#83adbe"/><polygon points="771.9,350.2 775.5,351.1 778.7,318.1 775.0,317.3" fill="#769cac"/><polygon points="484.5,363.8 433.1,396.3 430.6,370.0 482.9,338.9" fill="#a48e52"/><polygon points="445.6,321.6 391.8,350.8 386.2,302.2 441.7,275.6" fill="#b69e5a"/><polygon points="738.8,302.7 749.5,305.1 750.3,295.4 739.6,293.1" fill="#83adbe"/><polygon points="742.4,303.8 745.9,304.6 746.7,294.4 743.1,293.6" fill="#769cac"/><polygon points="443.5,328.8 389.9,358.3 382.2,292.4 438.1,266.4" fill="#a48e52"/><polygon points="856.6,324.2 831.9,353.9 832.0,353.7 856.6,324.0" fill="#95c4d1"/><polygon points="458.7,326.1 405.3,356.0 405.3,355.1 458.6,325.4" fill="#d1ba6b"/><polygon points="693.6,249.2 704.0,251.2 704.7,237.1 694.3,235.1" fill="#83adbe"/><polygon points="696.5,259.5 700.0,260.2 701.8,226.6 698.3,225.9" fill="#769cac"/><polygon points="711.6,276.5 715.1,277.2 716.4,255.2 712.9,254.5" fill="#8cb8cb"/><polygon points="708.3,272.3 718.8,274.5 719.7,259.5 709.2,257.3" fill="#9bccd9"/><polygon points="851.0,337.9 826.1,368.3 830.1,337.2 855.0,308.5" fill="#87b1c3"/><polygon points="456.3,331.6 403.1,361.7 401.6,347.5 455.3,318.2" fill="#c2a961"/><polygon points="845.7,321.6 856.6,324.0 832.0,353.7 820.4,350.9" fill="#b3ebfb"/><polygon points="450.1,322.9 458.6,325.4 405.3,355.1 396.4,352.3" fill="#fbe080"/><polygon points="829.7,314.4 840.5,316.8 814.8,345.7 803.4,343.0" fill="#b3ebfb"/><polygon points="839.0,327.8 813.4,357.3 814.8,345.7 840.5,316.8" fill="#95c4d1"/><polygon points="678.1,245.0 688.2,247.0 688.4,242.5 678.2,240.5" fill="#9bccd9"/><polygon points="681.1,254.8 684.4,255.5 685.4,232.5 682.0,231.9" fill="#8cb8cb"/><polygon points="834.5,334.3 808.8,364.1 811.9,336.9 837.8,308.5" fill="#87b1c3"/><polygon points="757.6,222.2 767.9,224.0 737.2,246.2 726.4,244.1" fill="#98c8dc"/><polygon points="799.0,294.1 809.5,296.3 781.9,323.5 770.9,320.9" fill="#98c8dc"/><polygon points="794.0,288.9 765.5,315.3 766.4,305.2 795.0,279.3" fill="#7ea6b7"/><polygon points="784.6,277.2 795.0,279.3 766.4,305.2 755.5,302.8" fill="#98c8dc"/><polygon points="822.3,328.0 795.8,357.2 796.2,353.7 822.7,324.7" fill="#95c4d1"/><polygon points="764.0,269.3 733.8,294.1 737.2,246.2 767.9,224.0" fill="#7ea6b7"/><polygon points="789.8,294.9 761.3,321.6 763.4,297.1 792.2,271.7" fill="#7296a5"/><polygon points="806.9,319.2 779.5,347.6 781.9,323.5 809.5,296.3" fill="#7ea6b7"/><polygon points="818.0,333.5 791.4,363.0 793.2,346.1 819.9,317.5" fill="#87b1c3"/><polygon points="812.2,322.3 822.7,324.7 796.2,353.7 785.1,351.0" fill="#b3ebfb"/><polygon points="760.3,272.7 730.0,297.6 733.9,241.0 764.9,219.1" fill="#7296a5"/><polygon points="803.0,322.6 775.5,351.1 778.7,318.1 806.5,291.3" fill="#7296a5"/><polygon points="778.9,279.5 749.5,305.1 750.3,295.4 779.7,270.3" fill="#7ea6b7"/><polygon points="769.5,268.2 779.7,270.3 750.3,295.4 739.6,293.1" fill="#98c8dc"/><polygon points="775.4,279.0 745.9,304.6 746.7,294.4 776.3,269.4" fill="#7296a5"/><polygon points="664.9,277.4 668.1,278.1 669.5,239.6 666.2,238.9" fill="#8cb8cb"/><polygon points="661.8,272.4 671.6,274.6 672.7,244.7 662.7,242.7" fill="#9bccd9"/><polygon points="727.1,214.1 737.1,215.9 704.7,237.1 694.3,235.1" fill="#98c8dc"/><polygon points="741.0,234.9 751.0,236.8 719.7,259.5 709.2,257.3" fill="#b3ebfb"/><polygon points="736.1,229.2 704.0,251.2 704.7,237.1 737.1,215.9" fill="#7ea6b7"/><polygon points="749.9,251.0 718.8,274.5 719.7,259.5 751.0,236.8" fill="#95c4d1"/><polygon points="732.2,237.7 700.0,260.2 701.8,226.6 734.4,206.0" fill="#7296a5"/><polygon points="746.3,253.6 715.1,277.2 716.4,255.2 747.9,232.8" fill="#87b1c3"/><polygon points="721.2,225.4 688.2,247.0 688.4,242.5 721.4,221.2" fill="#95c4d1"/><polygon points="711.7,219.5 721.4,221.2 688.4,242.5 678.2,240.5" fill="#b3ebfb"/><polygon points="717.4,233.6 684.4,255.5 685.4,232.5 718.7,211.8" fill="#87b1c3"/><polygon points="646.6,284.2 656.2,286.4 656.7,268.2 647.1,266.1" fill="#9bccd9"/><polygon points="649.3,303.3 652.5,304.0 654.0,248.4 650.8,247.7" fill="#8cb8cb"/><polygon points="696.8,221.7 706.3,223.5 672.7,244.7 662.7,242.7" fill="#b3ebfb"/><polygon points="704.8,251.8 671.6,274.6 672.7,244.7 706.3,223.5" fill="#95c4d1"/><polygon points="632.3,277.2 641.7,279.3 641.7,277.9 632.3,275.8" fill="#83adbe"/><polygon points="635.1,295.1 638.2,295.8 638.9,259.6 635.8,258.9" fill="#769cac"/><polygon points="701.4,255.2 668.1,278.1 669.5,239.6 703.4,218.7" fill="#87b1c3"/><polygon points="617.9,299.0 627.0,301.2 627.4,271.8 618.2,269.8" fill="#9bccd9"/><polygon points="620.9,304.3 623.9,305.0 624.4,266.4 621.3,265.8" fill="#8cb8cb"/><polygon points="681.4,244.1 690.6,245.9 656.7,268.2 647.1,266.1" fill="#b3ebfb"/><polygon points="689.8,263.3 656.2,286.4 656.7,268.2 690.6,245.9" fill="#95c4d1"/><polygon points="685.9,280.0 652.5,304.0 654.0,248.4 688.4,227.3" fill="#87b1c3"/><polygon points="593.6,301.4 596.5,302.1 596.3,212.4 593.3,211.8" fill="#769cac"/><polygon points="590.6,285.3 599.4,287.4 599.4,229.6 590.3,227.8" fill="#83adbe"/><polygon points="577.2,277.3 585.9,279.3 585.5,229.3 576.6,227.5" fill="#9bccd9"/><polygon points="580.1,283.9 583.0,284.6 582.5,222.4 579.5,221.8" fill="#8cb8cb"/><polygon points="604.1,292.7 613.1,294.9 613.1,292.3 604.1,290.1" fill="#83adbe"/><polygon points="607.1,294.8 610.1,295.6 610.1,290.1 607.1,289.4" fill="#769cac"/><polygon points="676.0,256.7 641.7,279.3 641.7,277.9 676.1,255.4" fill="#7ea6b7"/><polygon points="672.4,272.5 638.2,295.8 638.9,259.6 673.7,238.1" fill="#7296a5"/><polygon points="667.0,253.5 676.1,255.4 641.7,277.9 632.3,275.8" fill="#98c8dc"/><polygon points="627.4,208.6 636.1,210.2 599.4,229.6 590.3,227.8" fill="#98c8dc"/><polygon points="653.5,248.0 662.4,249.9 627.4,271.8 618.2,269.8" fill="#b3ebfb"/><polygon points="661.5,277.8 627.0,301.2 627.4,271.8 662.4,249.9" fill="#95c4d1"/><polygon points="658.4,281.5 623.9,305.0 624.4,266.4 659.5,244.8" fill="#87b1c3"/><polygon points="614.1,208.5 622.8,210.1 585.5,229.3 576.6,227.5" fill="#b3ebfb"/><polygon points="635.1,265.1 599.4,287.4 599.4,229.6 636.1,210.2" fill="#7ea6b7"/><polygon points="567.0,281.5 569.9,282.1 569.7,272.1 566.8,271.4" fill="#8cb8cb"/><polygon points="564.1,277.8 572.7,279.8 572.6,275.7 564.0,273.7" fill="#9bccd9"/><polygon points="632.0,279.1 596.5,302.1 596.3,212.4 633.5,193.9" fill="#7296a5"/><polygon points="622.2,257.6 585.9,279.3 585.5,229.3 622.8,210.1" fill="#95c4d1"/><polygon points="648.2,272.0 613.1,294.9 613.1,292.3 648.3,269.5" fill="#7ea6b7"/><polygon points="619.3,262.7 583.0,284.6 582.5,222.4 619.9,203.6" fill="#87b1c3"/><polygon points="645.3,272.7 610.1,295.6 610.1,290.1 645.4,267.5" fill="#7296a5"/><polygon points="639.6,267.6 648.3,269.5 613.1,292.3 604.1,290.1" fill="#98c8dc"/><polygon points="551.9,300.8 560.2,302.9 559.4,266.1 550.9,264.1" fill="#9bccd9"/><polygon points="554.7,303.7 557.5,304.4 556.5,263.1 553.7,262.5" fill="#8cb8cb"/><polygon points="609.4,258.3 572.7,279.8 572.6,275.7 609.4,254.4" fill="#95c4d1"/><polygon points="601.1,252.6 609.4,254.4 572.6,275.7 564.0,273.7" fill="#b3ebfb"/><polygon points="606.6,260.5 569.9,282.1 569.7,272.1 606.7,251.0" fill="#87b1c3"/><polygon points="542.5,312.4 545.2,313.1 544.3,282.0 541.5,281.3" fill="#8cb8cb"/><polygon points="539.5,300.6 547.6,302.7 547.4,293.9 539.2,291.9" fill="#9bccd9"/><polygon points="588.6,243.7 596.8,245.4 559.4,266.1 550.9,264.1" fill="#b3ebfb"/><polygon points="596.9,280.5 560.2,302.9 559.4,266.1 596.8,245.4" fill="#95c4d1"/><polygon points="594.2,282.0 557.5,304.4 556.5,263.1 594.1,242.6" fill="#87b1c3"/><polygon points="527.9,317.0 535.9,319.2 535.7,315.2 527.8,313.1" fill="#9bccd9"/><polygon points="530.6,318.6 533.2,319.3 533.0,313.7 530.4,313.0" fill="#8cb8cb"/><polygon points="515.6,307.7 523.5,309.8 522.9,295.3 515.0,293.3" fill="#83adbe"/><polygon points="518.3,308.9 520.9,309.6 520.2,294.1 517.6,293.4" fill="#769cac"/><polygon points="584.7,280.5 547.6,302.7 547.4,293.9 584.6,272.2" fill="#95c4d1"/><polygon points="503.4,297.2 511.2,299.2 510.8,291.3 503.0,289.3" fill="#9bccd9"/><polygon points="506.6,309.5 509.2,310.2 507.6,278.8 505.0,278.1" fill="#8cb8cb"/><polygon points="576.7,270.3 584.6,272.2 547.4,293.9 539.2,291.9" fill="#b3ebfb"/><polygon points="582.1,290.5 545.2,313.1 544.3,282.0 581.8,260.8" fill="#87b1c3"/><polygon points="495.0,307.7 497.5,308.4 496.4,288.0 493.8,287.4" fill="#769cac"/><polygon points="492.2,302.5 499.8,304.5 499.2,293.4 491.6,291.4" fill="#83adbe"/><polygon points="480.0,287.6 487.5,289.5 487.2,283.7 479.6,281.8" fill="#9bccd9"/><polygon points="483.5,304.1 486.0,304.8 483.6,266.7 481.1,266.1" fill="#8cb8cb"/><polygon points="468.4,281.9 475.9,283.8 474.4,261.8 466.9,260.0" fill="#83adbe"/><polygon points="471.4,290.2 473.9,290.8 471.4,253.3 468.8,252.8" fill="#769cac"/><polygon points="572.9,296.4 535.9,319.2 535.7,315.2 572.9,292.7" fill="#95c4d1"/><polygon points="553.1,272.1 560.8,273.8 522.9,295.3 515.0,293.3" fill="#98c8dc"/><polygon points="565.2,290.8 572.9,292.7 535.7,315.2 527.8,313.1" fill="#b3ebfb"/><polygon points="570.4,296.6 533.2,319.3 533.0,313.7 570.3,291.2" fill="#87b1c3"/><polygon points="561.1,287.7 523.5,309.8 522.9,295.3 560.8,273.8" fill="#7ea6b7"/><polygon points="558.6,287.6 520.9,309.6 520.2,294.1 558.2,272.7" fill="#7296a5"/><polygon points="549.3,277.8 511.2,299.2 510.8,291.3 549.1,270.2" fill="#95c4d1"/><polygon points="541.6,268.5 549.1,270.2 510.8,291.3 503.0,289.3" fill="#b3ebfb"/><polygon points="547.1,288.3 509.2,310.2 507.6,278.8 546.3,258.3" fill="#87b1c3"/><polygon points="530.4,270.6 537.8,272.4 499.2,293.4 491.6,291.4" fill="#98c8dc"/><polygon points="538.1,283.0 499.8,304.5 499.2,293.4 537.8,272.4" fill="#7ea6b7"/><polygon points="507.0,241.0 514.3,242.6 474.4,261.8 466.9,260.0" fill="#98c8dc"/><polygon points="535.8,286.8 497.5,308.4 496.4,288.0 535.1,267.3" fill="#7296a5"/><polygon points="526.4,268.9 487.5,289.5 487.2,283.7 526.2,263.3" fill="#95c4d1"/><polygon points="518.9,261.6 526.2,263.3 487.2,283.7 479.6,281.8" fill="#b3ebfb"/><polygon points="524.6,283.5 486.0,304.8 483.6,266.7 523.2,247.2" fill="#87b1c3"/><polygon points="515.2,263.6 475.9,283.8 474.4,261.8 514.3,242.6" fill="#7ea6b7"/><polygon points="513.1,270.4 473.9,290.8 471.4,253.3 511.5,234.6" fill="#7296a5"/>
+</g>
+</svg>
+              <div class="hud top">
+                <span class="pill sim">SIMULATED · 3/4 live</span>
+                <span class="meta">60 fps · 17:31:04</span>
+              </div>
+              <div class="hud controls">
+                <span class="stage-btn" aria-pressed="true">Auto-rotate</span>
+                <span class="stage-btn">Reset view</span>
+                <span class="stage-btn">Flat table</span>
+              </div>
+              <span class="price-tag up sim" style="left:63.2%;top:35.4%"><b>ALPHA</b>106.19</span>
+              <span class="price-tag down sim" style="left:73.4%;top:44.2%"><b>BETA</b>111.36</span>
+              <span class="price-tag up sim" style="left:56.1%;top:52.1%"><b>GAMMA</b>96.20</span>
+              <ul class="legend" id="legend">
+                <li><span class="dot" style="background:#6cc6f5"></span><span class="sym">ALPHA</span><span class="px">106.19</span><span class="up">+7.32%</span><span class="badge sim">simulated</span></li>
+                <li><span class="dot" style="background:#f2b134"></span><span class="sym">BETA</span><span class="px">111.36</span><span class="down">−8.24%</span><span class="badge sim">simulated</span></li>
+                <li><span class="dot" style="background:#67d18a"></span><span class="sym">GAMMA</span><span class="px">96.20</span><span class="up">+2.10%</span><span class="badge sim">simulated</span></li>
+                <li><span class="dot" style="background:#8fa3b8"></span><span class="sym">RELIANCE.NS</span><span class="px">—</span><span class="badge down">unavailable</span></li>
+              </ul>
+              <p class="stage-hint">drag to orbit · scroll to zoom · double-click to pause</p>
+            </div>
+
+            <div class="kpis" style="margin-bottom:14px">
+              <div class="kpi"><p class="k">ALPHA</p><p class="v up">106.19</p><p class="s">93 candles · 93 ticks · replay</p></div>
+              <div class="kpi"><p class="k">BETA</p><p class="v down">111.36</p><p class="s">93 candles · 93 ticks · replay</p></div>
+              <div class="kpi"><p class="k">GAMMA</p><p class="v up">96.20</p><p class="s">93 candles · 93 ticks · replay</p></div>
+              <div class="kpi"><p class="k">RELIANCE.NS</p><p class="v" style="color:var(--mmuted)">—</p><p class="s">delayed · vendor unreachable</p></div>
+            </div>
+
+            <div class="panel flush" id="tape" style="margin-bottom:14px">
+              <div class="panel-head">
+                <h2>The tape</h2>
+                <span class="tiny muted">labels travel with the data</span>
+              </div>
+              <table class="grid">
+                <thead>
+                  <tr>
+                    <th>symbol</th><th>provider</th><th>quality</th><th>status</th>
+                    <th class="num">last</th><th class="num">change</th>
+                    <th class="num">candles</th><th class="num">ticks</th>
+                    <th>last 40 candles</th><th>source / note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b>ALPHA</b></td><td>replay</td>
+                    <td><span class="badge sim">simulated</span></td><td>simulated</td>
+                    <td class="num">106.19</td><td class="num up">+7.32%</td>
+                    <td class="num">93</td><td class="num">93</td>
+                    <td><svg class="sparkline" width="132" height="34" viewBox="0 0 132 34"><polyline points="2,26 12,24 22,27 32,23 42,19 52,21 62,17 72,14 82,16 92,11 102,9 112,6 122,4 130,3" stroke="#6cc6f5"/></svg></td>
+                    <td class="tiny muted">simulated replay on a compressed clock</td>
+                  </tr>
+                  <tr>
+                    <td><b>BETA</b></td><td>replay</td>
+                    <td><span class="badge sim">simulated</span></td><td>simulated</td>
+                    <td class="num">111.36</td><td class="num down">−8.24%</td>
+                    <td class="num">93</td><td class="num">93</td>
+                    <td><svg class="sparkline" width="132" height="34" viewBox="0 0 132 34"><polyline points="2,8 12,11 22,9 32,14 42,12 52,17 62,15 72,20 82,18 92,23 102,21 112,26 122,24 130,28" stroke="#f2b134"/></svg></td>
+                    <td class="tiny muted">simulated replay on a compressed clock</td>
+                  </tr>
+                  <tr>
+                    <td><b>GAMMA</b></td><td>replay</td>
+                    <td><span class="badge sim">simulated</span></td><td>simulated</td>
+                    <td class="num">96.20</td><td class="num up">+2.10%</td>
+                    <td class="num">93</td><td class="num">93</td>
+                    <td><svg class="sparkline" width="132" height="34" viewBox="0 0 132 34"><polyline points="2,20 12,18 22,21 32,17 42,19 52,15 62,17 72,13 82,15 92,12 102,14 112,10 122,12 130,9" stroke="#67d18a"/></svg></td>
+                    <td class="tiny muted">simulated replay on a compressed clock</td>
+                  </tr>
+                  <tr>
+                    <td><b>RELIANCE.NS</b></td><td>poll</td>
+                    <td><span class="badge delayed">delayed</span></td><td>unavailable</td>
+                    <td class="num">—</td><td class="num">—</td>
+                    <td class="num">0</td><td class="num">0</td>
+                    <td class="tiny muted" style="padding:2px 10px">no data</td>
+                    <td class="tiny muted">VendorUnavailableError: Yahoo Finance request failed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="row" style="gap:14px">
+              <div class="panel grow" id="freetable">
+                <h3>What is actually free</h3>
+                <table class="grid">
+                  <thead><tr><th>provider</th><th>kind</th><th>what you get</th><th>cost</th></tr></thead>
+                  <tbody>
+                    <tr><td><b>binance</b></td><td>websocket</td><td>real-time trade prints</td><td>free, keyless</td></tr>
+                    <tr><td><b>coinbase</b></td><td>websocket</td><td>real-time match feed</td><td>free, keyless</td></tr>
+                    <tr><td><b>kraken</b></td><td>websocket</td><td>real-time trade prints</td><td>free, keyless</td></tr>
+                    <tr><td><b>poll</b></td><td>poll</td><td>delayed quotes, ~15 min for NSE</td><td>free, keyless</td></tr>
+                    <tr><td><b>generic</b></td><td>websocket</td><td>your broker's stream</td><td>your API key</td></tr>
+                    <tr><td><b>replay</b></td><td>replay</td><td>historical bars, simulated</td><td>free, offline</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="panel" style="width:470px">
+                <h3>Indian equities: no free WebSocket</h3>
+                <p class="small muted" style="margin-bottom:8px">NSE and BSE license real-time data through
+                brokers. Every honest route needs your own credentials.</p>
+                <table class="grid">
+                  <thead><tr><th>broker</th><th>needs</th><th>free?</th></tr></thead>
+                  <tbody>
+                    <tr><td>Kite</td><td>API key + token, paid plan</td><td class="down">no</td></tr>
+                    <tr><td>Upstox</td><td>developer app key</td><td class="down">no</td></tr>
+                    <tr><td>Angel One</td><td>key + client code + TOTP</td><td class="down">no</td></tr>
+                  </tbody>
+                </table>
+                <p class="hint" style="margin-top:8px;color:var(--mmuted)">Attach one with
+                <span class="mono">--feed generic:RELIANCE --feed-url …</span>. The key comes from the
+                environment and is never shown on this page.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 04 components -->
+      <section class="artboard" id="ab-components">
+        <header>
+          <span class="label">04 · Components and states</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">Everything the two screens are built from, with the states that matter: refused, pending, simulated, empty.</span>
+        </header>
+        <div class="frame selectable evidence" id="components" style="width:1440px">
+          <div class="sheet">
+            <div class="masthead"><h1 style="font-size:24px">Components</h1>
+              <p class="small muted">Evidence theme above the fold, market theme below it. One component set, two skins.</p></div>
+
+            <div class="row" style="gap:16px;align-items:flex-start">
+              <div class="grow col">
+                <div class="panel">
+                  <h3>Buttons</h3>
+                  <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap">
+                    <span class="btn">Run paper session</span>
+                    <span class="btn secondary">3D live market view →</span>
+                    <span class="btn ghost">Why NO TRADE?</span>
+                    <span class="btn danger">Roll back</span>
+                    <span class="btn" disabled>Approve (CLI only)</span>
+                  </div>
+                  <p class="hint" style="margin-top:9px">Disabled is the honest state for an action the browser
+                  cannot take. It is never hidden, so the reason can be explained in place.</p>
+                </div>
+
+                <div class="panel">
+                  <h3>Badges</h3>
+                  <div class="row" style="gap:8px;flex-wrap:wrap">
+                    <span class="badge ok">passed</span>
+                    <span class="badge warn">pending</span>
+                    <span class="badge bad">failed</span>
+                    <span class="badge accent">Paper Testing</span>
+                    <span class="badge neutral">Rolled Back</span>
+                    <span class="badge bad">live trading disabled</span>
+                  </div>
+                  <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+                    <span class="badge sim" style="color:#8a5a00;background:#fdf6e6;border-color:#e6cf9b">simulated</span>
+                    <span class="badge delayed" style="color:#8a5a00;background:#fbf2df;border-color:#e6cf9b">delayed</span>
+                    <span class="badge neutral">unavailable</span>
+                  </div>
+                </div>
+
+                <div class="panel">
+                  <h3>Form</h3>
+                  <div class="row" style="gap:12px">
+                    <div class="field grow"><label>version</label><div class="select">V01 — champion <span class="caret">▾</span></div></div>
+                    <div class="field grow"><label>forward trades to pass</label><div class="input num">5</div></div>
+                    <div class="field grow"><label>start (optional)</label><div class="input placeholder">2020-07-01</div></div>
+                  </div>
+                  <p class="hint" style="margin-top:8px">A declared start is recorded as declared: if it overlaps
+                  the sample the version was chosen on, the session is not a forward test.</p>
+                </div>
+
+                <div class="panel">
+                  <h3>Table row</h3>
+                  <table class="grid">
+                    <thead><tr><th>version</th><th>status</th><th class="num">trades</th><th class="num">expectancy</th><th class="num">net</th></tr></thead>
+                    <tbody>
+                      <tr><td><b>V01</b></td><td><span class="badge accent">Paper Testing</span></td><td class="num">14</td><td class="num up">+0.678R</td><td class="num up">+4,811.51</td></tr>
+                      <tr><td>V02</td><td><span class="badge neutral">Rejected</span></td><td class="num">12</td><td class="num down">−0.021R</td><td class="num down">−312.04</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="grow col">
+                <div class="panel">
+                  <h3>KPI tile</h3>
+                  <div class="kpis" style="grid-template-columns:1fr 1fr;gap:8px">
+                    <div class="kpi"><p class="k">expectancy</p><p class="v up">+0.678<small>R</small></p><p class="s">14 trades</p></div>
+                    <div class="kpi"><p class="k">drawdown</p><p class="v">1.6<small>%</small></p><p class="s">paper window</p></div>
+                  </div>
+                  <p class="hint" style="margin-top:9px">Value first, unit in a smaller weight, the qualifier
+                  underneath. Never a bare number without its unit.</p>
+                </div>
+
+                <div class="panel">
+                  <h3>Verdict block</h3>
+                  <div class="verdict" style="padding:11px 13px">
+                    <div class="head" style="margin-bottom:5px"><span class="mark" style="font-size:14px">NO TRADE</span><span class="badge warn">insufficient sample</span></div>
+                    <p class="tiny" style="color:#4b5563;margin:0">3 gates failed · the reason is the message, not a spinner.</p>
+                  </div>
+                  <div class="verdict stop" style="padding:11px 13px;margin-top:9px">
+                    <div class="head" style="margin-bottom:5px"><span class="mark" style="font-size:14px">NO TRADE</span><span class="badge bad">rejected</span></div>
+                    <p class="tiny" style="color:#4b5563;margin:0">Candidate refused by the gates.</p>
+                  </div>
+                  <p class="hint" style="margin-top:9px">Amber when the sample is thin, red when a gate refused.
+                  Both are results; neither is an error.</p>
+                </div>
+
+                <div class="panel">
+                  <h3>Feed states</h3>
+                  <table class="grid">
+                    <tbody>
+                      <tr><td><span class="badge live" style="color:#1c6b46;background:#eaf5ee;border-color:#9dc7b0">live</span></td><td class="tiny muted">keyless public stream, real-time</td></tr>
+                      <tr><td><span class="badge delayed" style="color:#8a5a00;background:#fbf2df;border-color:#e6cf9b">delayed</span></td><td class="tiny muted">vendor polling, ~15 min</td></tr>
+                      <tr><td><span class="badge sim" style="color:#8a5a00;background:#fdf6e6;border-color:#e6cf9b">simulated</span></td><td class="tiny muted">replay of stored bars</td></tr>
+                      <tr><td><span class="badge bad">unavailable</span></td><td class="tiny muted">endpoint refused; error text shown</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="panel">
+                  <h3>Empty state</h3>
+                  <div style="border:1px dashed var(--line-strong);border-radius:8px;padding:18px;text-align:center;background:#fdfcf9">
+                    <p class="small" style="margin:0 0 3px;font-weight:600">No feed configured</p>
+                    <p class="tiny muted" style="margin:0">Start the server with <span class="mono">--feed binance:BTCUSDT</span>.
+                    Nothing is being streamed, and nothing is being faked.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="market panel" style="margin-top:16px;padding:16px 18px">
+              <h3 style="color:#8fa3b8">Market skin · the same components</h3>
+              <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap">
+                <span class="pill sim">SIMULATED · 3/4 live</span>
+                <span class="pill live">LIVE · 4/4</span>
+                <span class="pill warn">STALE · render-time data</span>
+                <span class="pill down">NO FEED</span>
+                <span class="stage-btn" aria-pressed="true">Auto-rotate</span>
+                <span class="stage-btn">Flat table</span>
+                <span class="price-tag up sim" style="position:static"><b>ALPHA</b>106.19</span>
+                <span class="price-tag down sim" style="position:static"><b>BETA</b>111.36</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 05 handoff -->
+      <section class="artboard" id="ab-handoff">
+        <header>
+          <span class="label">05 · Handoff</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">Tokens, redlines and the copy rules that keep the honesty properties intact in a redesign.</span>
+        </header>
+        <div class="frame selectable evidence" id="handoff" style="width:1440px">
+          <div class="sheet">
+            <div class="masthead"><h1 style="font-size:24px">Handoff</h1>
+              <p class="small muted">If this file is used to rebuild the screens, these are the parts that must survive.</p></div>
+
+            <div class="row" style="gap:16px;align-items:flex-start;margin-bottom:16px">
+              <div class="panel grow">
+                <h3>Type scale</h3>
+                <table class="grid">
+                  <tbody>
+                    <tr><td class="mono tiny">display</td><td style="font-size:34px;font-weight:700;letter-spacing:-.02em">34 / 650</td></tr>
+                    <tr><td class="mono tiny">h1</td><td style="font-size:27px;font-weight:650;letter-spacing:-.015em">27 / 650</td></tr>
+                    <tr><td class="mono tiny">h2</td><td style="font-size:20px;font-weight:650">20 / 650</td></tr>
+                    <tr><td class="mono tiny">h3</td><td style="font-size:17px;font-weight:650">17 / 650</td></tr>
+                    <tr><td class="mono tiny">label</td><td style="font-size:13px;font-weight:600">13 / 600</td></tr>
+                    <tr><td class="mono tiny">body</td><td style="font-size:13px">13 / 400 · the default</td></tr>
+                    <tr><td class="mono tiny">caption</td><td style="font-size:12px;color:#6b7280">12 / 400 · qualifiers</td></tr>
+                    <tr><td class="mono tiny">eyebrow</td><td style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#1f5f8b">11 / 700 / +0.14em</td></tr>
+                  </tbody>
+                </table>
+                <p class="hint" style="margin-top:8px">Numbers are always tabular. A column of metrics must line up
+                on the decimal, or the eye reads noise.</p>
+              </div>
+
+              <div class="panel" style="width:430px">
+                <h3>Spacing · 8-point base</h3>
+                <div class="col" style="gap:7px">
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">4</span><span style="height:8px;width:4px;background:#1f5f8b;display:block"></span><span class="tiny muted">badge inset</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">8</span><span style="height:8px;width:8px;background:#1f5f8b;display:block"></span><span class="tiny muted">chip gap</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">12</span><span style="height:8px;width:12px;background:#1f5f8b;display:block"></span><span class="tiny muted">card padding (tight)</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">16</span><span style="height:8px;width:16px;background:#1f5f8b;display:block"></span><span class="tiny muted">card padding</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">24</span><span style="height:8px;width:24px;background:#1f5f8b;display:block"></span><span class="tiny muted">section rhythm</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">34</span><span style="height:8px;width:34px;background:#1f5f8b;display:block"></span><span class="tiny muted">page gutter (1440)</span></div>
+                </div>
+                <div class="rule"></div>
+                <h3>Radius</h3>
+                <div class="row" style="gap:8px;align-items:flex-end">
+                  <div style="width:40px;height:28px;border:1px solid #c9c4b8;border-radius:4px;background:#fff"></div>
+                  <div style="width:40px;height:28px;border:1px solid #c9c4b8;border-radius:6px;background:#fff"></div>
+                  <div style="width:40px;height:28px;border:1px solid #c9c4b8;border-radius:8px;background:#fff"></div>
+                  <div style="width:40px;height:28px;border:1px solid #c9c4b8;border-radius:12px;background:#fff"></div>
+                  <div style="width:52px;height:24px;border:1px solid #c9c4b8;border-radius:999px;background:#fff"></div>
+                </div>
+                <p class="hint" style="margin-top:7px">4 · 6 · 8 · 12 · pill. The 3D stage is the only 12px surface.</p>
+              </div>
+
+              <div class="panel" style="width:392px">
+                <h3>Contrast</h3>
+                <table class="grid">
+                  <tbody>
+                    <tr><td class="tiny">ink on paper</td><td class="mono tiny">15.9:1</td><td><span class="badge ok">AA+</span></td></tr>
+                    <tr><td class="tiny">muted on paper</td><td class="mono tiny">5.4:1</td><td><span class="badge ok">AA</span></td></tr>
+                    <tr><td class="tiny">accent on white</td><td class="mono tiny">6.6:1</td><td><span class="badge ok">AA</span></td></tr>
+                    <tr><td class="tiny">live on stage</td><td class="mono tiny">11.2:1</td><td><span class="badge ok">AA+</span></td></tr>
+                    <tr><td class="tiny">sim on stage</td><td class="mono tiny">10.4:1</td><td><span class="badge ok">AA+</span></td></tr>
+                  </tbody>
+                </table>
+                <p class="hint" style="margin-top:8px">Colour is never the only signal: every state also carries a word.</p>
+              </div>
+            </div>
+
+            <div class="row" style="gap:16px;align-items:flex-start">
+              <div class="panel grow">
+                <h3>Copy rules (these are the product)</h3>
+                <div class="spec" style="grid-template-columns:1fr">
+                  <ul>
+                    <li><b>Never call a delayed or simulated feed live.</b> The word appears on the legend,
+                    the card, the row and the JSON field.</li>
+                    <li><b>NO TRADE is a result.</b> It always names the gate and the number that failed it.</li>
+                    <li><b>Units travel with numbers:</b> R, %, currency, bars, folds.</li>
+                    <li><b>An unreachable feed reports its error</b>, never a stale price.</li>
+                    <li><b>Disabled actions stay visible</b> with the reason beside them: approvals are CLI-only.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="panel" style="width:520px">
+                <h3>Redlines</h3>
+                <div style="border:1px solid var(--line);border-radius:8px;padding:14px;position:relative;background:#fff">
+                  <div class="redline" data-m="16" style="padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:9px">
+                    <p class="eyebrow" style="margin:0">eyebrow · 11/700</p>
+                  </div>
+                  <div class="redline" data-m="24" style="margin-bottom:9px">
+                    <p style="font-size:27px;font-weight:650;letter-spacing:-.015em;margin:0">Heading · 27/650</p>
+                  </div>
+                  <div class="redline" data-m="8">
+                    <p class="tiny muted" style="margin:0">Meta line · 12.5 · muted</p>
+                  </div>
+                  <div style="display:flex;gap:8px;margin-top:12px">
+                    <span class="badge accent">badge</span>
+                    <span class="chip">chip · 11</span>
+                  </div>
+                </div>
+                <p class="hint" style="margin-top:8px">Gutter 34 · card gap 14 · panel padding 14/16 · row height 44.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ============================================================ inspector -->
+  <aside class="side right" aria-label="Inspector">
+    <div class="inspect-head">
+      <span class="chip" id="i-kind">fr</span>
+      <span class="title" id="i-title">01 · Dashboard</span>
+    </div>
+    <div class="block">
+      <h2>Properties</h2>
+      <dl class="rows" id="i-rows">
+        <dt>size</dt><dd class="mono">1440 × content</dd>
+        <dt>theme</dt><dd>evidence</dd>
+        <dt>grid</dt><dd class="mono">12 col · 84 gutter</dd>
+        <dt>layout</dt><dd>main 2fr · rail 376</dd>
+      </dl>
+    </div>
+    <div class="block">
+      <h2>Fills</h2>
+      <div class="swatches" id="i-swatches">
+        <span class="swatch" style="background:#fbfaf7" title="paper #fbfaf7"></span>
+        <span class="swatch" style="background:#ffffff" title="surface #ffffff"></span>
+        <span class="swatch" style="background:#12161c" title="ink #12161c"></span>
+      </div>
+    </div>
+    <div class="block">
+      <h2>Notes</h2>
+      <p class="tip" id="i-note"><b>What this frame is for.</b> One screen answers “what does the evidence
+      say, and what may I do about it?” — verdict first, action second, permissions spelled out.</p>
+    </div>
+    <div class="block">
+      <h2>Source of truth</h2>
+      <p class="tip">Drawn from the running app, not from memory:
+      <code>/api/snapshot</code> for the numbers, <code>docs/design/scene.svg</code> for the scene, and
+      <code>docs/design/tokens.json</code> for the palette.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* Board interactions: zoom, page jumps, layer selection, inspector, present mode.
+ *
+ * Deliberately small and dependency-free — the file has to open from disk with no server,
+ * which is also the constraint the product itself is built under.
+ */
+(function () {
+  'use strict';
+
+  const canvas = document.getElementById('canvas');
+  const inner = document.getElementById('canvas-inner');
+  const zoomValue = document.getElementById('zoom-value');
+  const steps = [0.2, 0.25, 0.3, 0.35, 0.42, 0.5, 0.6, 0.75, 1];
+  let zoom = 0.42;
+
+  /* `zoom` rather than `transform: scale()`, because a transform leaves the layout box at
+   * full size and the canvas then scrolls through empty space that is not there. */
+  function applyZoom(next) {
+    zoom = Math.max(0.15, Math.min(1, next));
+    inner.style.zoom = String(zoom);
+    zoomValue.textContent = Math.round(zoom * 100) + '%';
+    // Keep the scroll area honest for engines that ignore `zoom` on a flex container.
+    if (!('zoom' in inner.style)) inner.style.transform = 'scale(' + zoom + ')';
+  }
+
+  document.getElementById('zoom-in').addEventListener('click', () => {
+    const index = steps.findIndex((value) => value > zoom + 0.001);
+    applyZoom(index === -1 ? 1 : steps[index]);
+  });
+  document.getElementById('zoom-out').addEventListener('click', () => {
+    const index = steps.slice().reverse().findIndex((value) => value < zoom - 0.001);
+    applyZoom(index === -1 ? steps[0] : steps[steps.length - 1 - index]);
+  });
+  document.getElementById('zoom-fit').addEventListener('click', () => {
+    const width = canvas.clientWidth - 128;
+    applyZoom(Math.max(0.2, Math.min(1, width / 1440)));
+  });
+
+  document.getElementById('present').addEventListener('click', function () {
+    const on = document.body.classList.toggle('present');
+    this.setAttribute('aria-pressed', on ? 'true' : 'false');
+    this.textContent = on ? 'Exit present' : 'Present';
+    applyZoom(on ? 0.9 : 0.42);
+  });
+
+  function goTo(id) {
+    document.querySelectorAll('.artboard').forEach((board) => { board.style.outline = ''; });
+    const board = document.getElementById('ab-' + id);
+    if (!board) return;
+    board.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.querySelectorAll('.frame').forEach((frame) => frame.classList.remove('selected'));
+    board.querySelectorAll('.frame').forEach((frame) => frame.classList.add('selected'));
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.setAttribute('aria-selected', tab.dataset.goto === id ? 'true' : 'false');
+    });
+    document.querySelectorAll('.side.left .layer[data-goto]').forEach((layer) => {
+      if (layer.dataset.goto === id) layer.setAttribute('aria-current', 'true');
+      else layer.removeAttribute('aria-current');
+    });
+  }
+
+  document.querySelectorAll('[data-goto]').forEach((node) => {
+    node.addEventListener('click', () => goTo(node.dataset.goto));
+  });
+
+  const META = {
+    nav: { kind: 'cmp', title: 'TopNav', rows: [['height', '64'], ['rule', '2px ink'],
+      ['actions', 'status badge + link']], note: 'The status badge is part of the navigation: the first thing read is that live trading is off.' },
+    champion: { kind: 'cmp', title: 'ChampionCard', rows: [['version', 'V01'],
+      ['status', 'Paper Testing'], ['stage', 'awaiting_user_approval'], ['versions', '4 · 0 accepted']],
+      note: 'Champion, status and pipeline position in one block. “Awaiting approval” is stated as a state, never as a call to action.' },
+    stepper: { kind: 'cmp', title: 'PipelineStepper', rows: [['steps', '7'],
+      ['filled', 'evidence recorded'], ['hollow', 'no evidence yet'], ['current', 'approval']],
+      note: 'A filled pip means evidence exists on file — not that the stage passed its bar. The walk-forward pip is filled and still reports −0.006R.' },
+    kpis: { kind: 'cmp', title: 'KpiStrip', rows: [['columns', '4'], ['value', '24/650 tabular'],
+      ['unit', '13/600 muted'], ['qualifier', '11.5 muted']],
+      note: 'Paper numbers sit next to out-of-sample numbers on purpose: +0.678R forward, +0.094R out of sample. Hiding the weaker one would be a sales graph.' },
+    verdict: { kind: 'cmp', title: 'NoTradeVerdict', rows: [['state', 'rejected'],
+      ['gates', '6 named'], ['fill', 'wash-bad'], ['border', '4px stop']],
+      note: 'The headline of the product. Six failed gates, each with the number that failed it, and the hypothesis that proposed the idea.' },
+    sessions: { kind: 'tbl', title: 'PaperSessions', rows: [['rows', '1'], ['source', 'paper_sessions.jsonl'],
+      ['order', 'append-only'], ['verdict', 'badge']],
+      note: 'The record of what happened forward of the selection window. The footer repeats that passing approves nothing.' },
+    counts: { kind: 'cmp', title: 'EvidenceCounts', rows: [['hypotheses', '3'], ['accepted', '0'],
+      ['rejected', '3'], ['holdout', '3 of 3 uses']],
+      note: 'Zero accepted is shown as a number, not glossed over. The holdout budget being spent is a warning, not a footnote.' },
+    risk: { kind: 'cmp', title: 'RiskPolicy', rows: [['per trade', '1.0%'], ['leverage', '1.0x'],
+      ['positions', '1'], ['editable', 'CLI only']],
+      note: 'Read-only here by design: a browser cannot loosen a limit or grant live permission.' },
+    stage: { kind: 'cmp', title: 'MarketStage', rows: [['ratio', '16:9'], ['render', 'WebGL 1, inline'],
+      ['camera', 'orbit · 0.55 rad / 0.45 rad'], ['fallback', 'flat table']],
+      note: 'Hand-written WebGL: no CDN, because the page must work with the network off. The scene above is the app’s own geometry projected by its own camera.' },
+    legend: { kind: 'cmp', title: 'FeedLegend', rows: [['items', 'per feed'], ['quality', 'badge on every item'],
+      ['price', 'tabular'], ['unreachable', 'dash + badge']],
+      note: 'Quality is repeated inside each legend chip. A trader glancing at the legend still learns the data is simulated.' },
+    tape: { kind: 'tbl', title: 'TapeTable', rows: [['columns', '10'], ['sparkline', 'server-rendered SVG'],
+      ['note column', 'source or error'], ['hover', 'row wash']],
+      note: 'Sparklines are drawn by the server, so the table has shape even with JavaScript disabled. The note column carries the error text when a feed is down.' },
+    freetable: { kind: 'tbl', title: 'ProviderTable', rows: [['providers', '6'], ['cost', 'stated'],
+      ['indian brokers', 'separate table'], ['source', 'feeds.PROVIDERS']],
+      note: 'The table is generated from the same registry the server uses, so the documentation cannot drift from the code.' }
+  };
+
+  function selectLayer(id) {
+    const meta = META[id];
+    if (!meta) return;
+    document.getElementById('i-kind').textContent = meta.kind;
+    document.getElementById('i-title').textContent = meta.title;
+    const rows = document.getElementById('i-rows');
+    rows.innerHTML = meta.rows.map(([key, value]) =>
+      '<dt>' + key + '</dt><dd class="mono">' + value + '</dd>').join('');
+    document.getElementById('i-note').innerHTML = meta.note;
+    document.querySelectorAll('#tree .layer').forEach((layer) => {
+      if (layer.dataset.target === id) layer.setAttribute('aria-current', 'true');
+      else layer.removeAttribute('aria-current');
+    });
+    const target = document.getElementById(id);
+    document.querySelectorAll('.hl').forEach((node) => node.classList.remove('hl'));
+    if (target) {
+      target.style.outline = '2px solid #4c8dff';
+      target.style.outlineOffset = '2px';
+      target.classList.add('hl');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  document.querySelectorAll('#tree .layer').forEach((layer) => {
+    layer.addEventListener('click', () => selectLayer(layer.dataset.target));
+  });
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('#tree')) return;
+    const cleared = document.querySelector('.hl');
+    if (cleared) {
+      cleared.style.outline = '';
+      cleared.classList.remove('hl');
+    }
+  });
+
+  // A frame click selects its board, so the tab state stays honest.
+  document.querySelectorAll('.frame').forEach((frame) => {
+    frame.addEventListener('click', (event) => {
+      if (event.target.closest('#tree')) return;
+      const board = frame.closest('.artboard');
+      if (board) goTo(board.id.replace('ab-', ''));
+    });
+  });
+
+  applyZoom(0.42);
+  window.addEventListener('resize', () => {
+    if (document.body.classList.contains('present')) return;
+  });
+})();
+</script>
+</body>
+</html>

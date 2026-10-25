@@ -1,0 +1,225 @@
+{
+  "$themes": [
+    {
+      "name": "evidence",
+      "selectedTokenSets": {
+        "global": "source"
+      }
+    },
+    {
+      "name": "market",
+      "selectedTokenSets": {
+        "global": "source"
+      }
+    }
+  ],
+  "$metadata": {
+    "tokenSetOrder": [
+      "global"
+    ]
+  },
+  "global": {
+    "color": {
+      "evidence": {
+        "ink": {
+          "$value": "#12161c",
+          "$type": "color"
+        },
+        "paper": {
+          "$value": "#fbfaf7",
+          "$type": "color"
+        },
+        "surface": {
+          "$value": "#ffffff",
+          "$type": "color"
+        },
+        "muted": {
+          "$value": "#6b7280",
+          "$type": "color"
+        },
+        "line": {
+          "$value": "#e3e0d8",
+          "$type": "color"
+        },
+        "line-strong": {
+          "$value": "#c9c4b8",
+          "$type": "color"
+        },
+        "accent": {
+          "$value": "#1f5f8b",
+          "$type": "color"
+        },
+        "accent-press": {
+          "$value": "#17496b",
+          "$type": "color"
+        },
+        "ok": {
+          "$value": "#1c6b46",
+          "$type": "color"
+        },
+        "warn": {
+          "$value": "#8a5a00",
+          "$type": "color"
+        },
+        "bad": {
+          "$value": "#8c2f2f",
+          "$type": "color"
+        },
+        "wash-accent": {
+          "$value": "#eef4f9",
+          "$type": "color"
+        },
+        "wash-ok": {
+          "$value": "#eaf5ee",
+          "$type": "color"
+        },
+        "wash-warn": {
+          "$value": "#fbf2df",
+          "$type": "color"
+        },
+        "wash-bad": {
+          "$value": "#f9ecec",
+          "$type": "color"
+        }
+      },
+      "market": {
+        "stage": {
+          "$value": "#080c12",
+          "$type": "color"
+        },
+        "stage-mid": {
+          "$value": "#0a1018",
+          "$type": "color"
+        },
+        "stage-glow": {
+          "$value": "#16273a",
+          "$type": "color"
+        },
+        "ink": {
+          "$value": "#e8eef6",
+          "$type": "color"
+        },
+        "muted": {
+          "$value": "#8fa3b8",
+          "$type": "color"
+        },
+        "hairline": {
+          "$value": "rgba(232,238,246,.14)",
+          "$type": "color"
+        },
+        "live": {
+          "$value": "#7cf0b4",
+          "$type": "color"
+        },
+        "sim": {
+          "$value": "#f6cd6b",
+          "$type": "color"
+        },
+        "down": {
+          "$value": "#ff9d9d",
+          "$type": "color"
+        },
+        "flat": {
+          "$value": "#8fa3b8",
+          "$type": "color"
+        }
+      },
+      "series": {
+        "track-1": {
+          "$value": "#6cc6f5",
+          "$type": "color"
+        },
+        "track-2": {
+          "$value": "#f2b134",
+          "$type": "color"
+        },
+        "track-3": {
+          "$value": "#67d18a",
+          "$type": "color"
+        },
+        "track-4": {
+          "$value": "#e86a92",
+          "$type": "color"
+        },
+        "track-5": {
+          "$value": "#b28df0",
+          "$type": "color"
+        },
+        "track-6": {
+          "$value": "#4fd1c5",
+          "$type": "color"
+        }
+      }
+    },
+    "space": {
+      "4": {
+        "$value": "4px",
+        "$type": "spacing"
+      },
+      "6": {
+        "$value": "6px",
+        "$type": "spacing"
+      },
+      "8": {
+        "$value": "8px",
+        "$type": "spacing"
+      },
+      "12": {
+        "$value": "12px",
+        "$type": "spacing"
+      },
+      "16": {
+        "$value": "16px",
+        "$type": "spacing"
+      },
+      "20": {
+        "$value": "20px",
+        "$type": "spacing"
+      },
+      "24": {
+        "$value": "24px",
+        "$type": "spacing"
+      },
+      "32": {
+        "$value": "32px",
+        "$type": "spacing"
+      },
+      "48": {
+        "$value": "48px",
+        "$type": "spacing"
+      }
+    },
+    "radius": {
+      "xs": {
+        "$value": "4px",
+        "$type": "borderRadius"
+      },
+      "sm": {
+        "$value": "6px",
+        "$type": "borderRadius"
+      },
+      "md": {
+        "$value": "8px",
+        "$type": "borderRadius"
+      },
+      "lg": {
+        "$value": "12px",
+        "$type": "borderRadius"
+      },
+      "pill": {
+        "$value": "999px",
+        "$type": "borderRadius"
+      }
+    },
+    "typography": {
+      "family": {
+        "$value": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, sans-serif",
+        "$type": "fontFamilies"
+      },
+      "mono": {
+        "$value": "ui-monospace, SFMono-Regular, Menlo, monospace",
+        "$type": "fontFamilies"
+      }
+    }
+  }
+}

@@ -90,11 +90,11 @@ outcome, not an error, and it always carries its measured reason.
 
 ```
 $ .venv/bin/python -m pytest -q
-1640 passed, 1 skipped, 1 deselected, 100 subtests passed    (60.1 s)
+1647 passed, 1 skipped, 1 deselected, 100 subtests passed    (60.3 s)
 ```
 
-Baseline before this work was `1361 passed, 1 skipped`. The addition is **279 tests** across
-17 new modules:
+Baseline before this work was `1361 passed, 1 skipped`. The addition is **286 tests** across
+18 new modules:
 
 | Test module | Covers |
 | --- | --- |
@@ -115,6 +115,7 @@ Baseline before this work was `1361 passed, 1 skipped`. The addition is **279 te
 | `test_research_paper.py` (11) | forward windows, pending vs failed, append-only sessions, status transitions, cost share, dashboard wiring |
 | `test_research_server.py` (10) | page rendering, form token, redirect message, JSON snapshot, escaping, refused sessions, `/feeds` and `/api/feeds`, no store writes |
 | `test_research_feeds.py` (43) | WebSocket handshake/masking/fragmentation/ping/close over a socket pair, provider parsers, candle rolling, replay determinism, poll labels, hub snapshot, CLI feed builder |
+| `test_design_board.py` (7) | the design file is self-contained, its layers resolve, its scripts parse, and its palette matches the CSS the app ships |
 | `test_research_livepage.py` (19) | page carries the numbers without JS, no external references, boot payload escaping, sparklines, Node syntax + geometry + a full stub-GL render |
 
 ```
@@ -280,6 +281,15 @@ rendered and ticked at 8 bars/s with `simulated` on every label, and `poll:RELIA
 answer. The `binance:`/`coinbase:` paths are exercised in the suite against a socket pair and a
 stub transport, not against the live venue, so their first real run will be on a machine with
 egress.
+
+**The design file.** `docs/design/` holds the screens as a single portable HTML board
+(`strategy-intelligence.html`): cover, dashboard at 1440, the same at 390, the 3D view, a
+component sheet and a handoff page with tokens and redlines. It is generated from the app rather
+than drawn beside it — the numbers come from the preview store, the scene is the real geometry
+projected by the real camera (`make_scene_svg.js` imports `scene-math.js`), and the palette is
+`tokens.json`, which `tests/test_design_board.py` checks against the CSS in `server.py` and
+`livepage.py`. The build refuses to emit a file that would fetch anything at runtime, and
+`tokens.tokens-studio.json` carries the same palette in the format Figma imports as variables.
 
 **The one rule that did not change.** A live tape is display-only. `run_paper_session` and
 `run_backtest` read loaded bars; nothing in `feeds.py` can reach the store, and

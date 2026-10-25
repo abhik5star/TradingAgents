@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategy Intelligence · design file</title>
+<style>
+/*{{BOARD_CSS}}*/
+</style>
+<style>
+/*{{FRAME_CSS}}*/
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================================================ top bar -->
+  <header class="topbar">
+    <div class="brand"><span class="glyph">SI</span> Strategy Intelligence</div>
+    <div class="crumbs">TradingAgents / <b>research</b> / design</div>
+    <nav class="tabs" role="tablist" aria-label="Pages">
+      <button class="tab" role="tab" aria-selected="true" data-goto="cover">Cover</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="dashboard">Dashboard</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="mobile">Mobile</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="live">3D live</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="components">Components</button>
+      <button class="tab" role="tab" aria-selected="false" data-goto="handoff">Handoff</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="zoom">
+      <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      <span class="value" id="zoom-value">42%</span>
+      <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" id="zoom-fit" aria-label="Fit" title="Fit width">fit</button>
+    </div>
+    <button class="ghost" type="button" id="present" aria-pressed="false">Present</button>
+  </header>
+
+  <!-- ============================================================ layers -->
+  <aside class="side left" aria-label="Layers">
+    <div class="block">
+      <h2>Pages</h2>
+      <ul class="layers">
+        <li><button class="layer" data-goto="cover"><span class="kind">fr</span><span class="name">00 · Cover</span></button></li>
+        <li><button class="layer" data-goto="dashboard" aria-current="true"><span class="kind">fr</span><span class="name">01 · Dashboard 1440</span></button></li>
+        <li><button class="layer" data-goto="mobile"><span class="kind">fr</span><span class="name">02 · Dashboard 390</span></button></li>
+        <li><button class="layer" data-goto="live"><span class="kind">fr</span><span class="name">03 · 3D live 1440</span></button></li>
+        <li><button class="layer" data-goto="components"><span class="kind">fr</span><span class="name">04 · Components</span></button></li>
+        <li><button class="layer" data-goto="handoff"><span class="kind">fr</span><span class="name">05 · Handoff</span></button></li>
+      </ul>
+    </div>
+    <div class="block">
+      <h2>Layer tree</h2>
+      <ul class="layers" id="tree">
+        <li><button class="layer" data-target="nav"><span class="kind">cmp</span><span class="name">TopNav</span></button></li>
+        <li><button class="layer" data-target="champion"><span class="kind">cmp</span><span class="name">ChampionCard</span></button></li>
+        <li><button class="layer" data-target="stepper"><span class="kind">cmp</span><span class="name">PipelineStepper</span></button></li>
+        <li><button class="layer" data-target="kpis"><span class="kind">cmp</span><span class="name">KpiStrip</span></button></li>
+        <li><button class="layer" data-target="verdict"><span class="kind">cmp</span><span class="name">NoTradeVerdict</span></button></li>
+        <li><button class="layer" data-target="sessions"><span class="kind">tbl</span><span class="name">PaperSessions</span></button></li>
+        <li><button class="layer" data-target="counts"><span class="kind">cmp</span><span class="name">EvidenceCounts</span></button></li>
+        <li><button class="layer" data-target="risk"><span class="kind">cmp</span><span class="name">RiskPolicy</span></button></li>
+        <li><button class="layer" data-target="stage"><span class="kind">cmp</span><span class="name">MarketStage</span></button></li>
+        <li><button class="layer" data-target="legend"><span class="kind">cmp</span><span class="name">FeedLegend</span></button></li>
+        <li><button class="layer" data-target="tape"><span class="kind">tbl</span><span class="name">TapeTable</span></button></li>
+        <li><button class="layer" data-target="freetable"><span class="kind">tbl</span><span class="name">ProviderTable</span></button></li>
+      </ul>
+    </div>
+    <div class="block">
+      <h2>Design tokens</h2>
+      <ul class="token-list">
+        <li><span class="dot" style="background:#1f5f8b"></span>accent<code>#1f5f8b</code></li>
+        <li><span class="dot" style="background:#1c6b46"></span>pass<code>#1c6b46</code></li>
+        <li><span class="dot" style="background:#8a5a00"></span>caution<code>#8a5a00</code></li>
+        <li><span class="dot" style="background:#8c2f2f"></span>stop<code>#8c2f2f</code></li>
+        <li><span class="dot" style="background:#6cc6f5"></span>track-1<code>#6cc6f5</code></li>
+        <li><span class="dot" style="background:#f2b134"></span>track-2<code>#f2b134</code></li>
+        <li><span class="dot" style="background:#67d18a"></span>track-3<code>#67d18a</code></li>
+      </ul>
+      <p class="tip">Colours come from the shipped app, not from a mood board: <code>docs/design/tokens.json</code> is generated from the same values the server renders.</p>
+    </div>
+  </aside>
+
+  <!-- ============================================================ canvas -->
+  <main class="canvas" id="canvas">
+    <div class="canvas-inner" id="canvas-inner">
+
+      <!-- ------------------------------------------------ 00 cover -->
+      <section class="artboard" id="ab-cover">
+        <header>
+          <span class="label">00 · Cover</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">The argument of the product in one screen: evidence first, permission last.</span>
+        </header>
+        <div class="frame selectable evidence" id="cover" style="width:1440px">
+          <div class="cover">
+            <p class="eyebrow">TradingAgents · research module</p>
+            <p class="big">Strategy Intelligence</p>
+            <p class="sub">A research desk that is allowed to say no. Hypotheses are tested against
+            explicit gates, versions are immutable, and nothing reaches a live account without a
+            human typing its name.</p>
+            <div class="meta-row">
+              <div><b>v1.0 · design file</b>25 Oct 2026</div>
+              <div><b>Owner</b>Research engineering</div>
+              <div><b>Surfaces</b>CLI · browser dashboard · HTML report</div>
+              <div><b>Live trading</b>disabled by default</div>
+            </div>
+            <div class="rule"></div>
+            <div class="row" style="gap:34px">
+              <div class="grow">
+                <h3>Contents</h3>
+                <div class="toc">
+                  <div><span>01</span><span>Dashboard · evidence and the paper action</span></div>
+                  <div><span>02</span><span>Dashboard · 390 wide</span></div>
+                  <div><span>03</span><span>3D live market view</span></div>
+                  <div><span>04</span><span>Components and states</span></div>
+                  <div><span>05</span><span>Handoff: tokens, redlines, copy rules</span></div>
+                </div>
+              </div>
+              <div style="width:430px">
+                <h3>Two themes, one rule</h3>
+                <p class="small" style="color:#374151">Evidence screens keep the report's paper theme.
+                The live tape is dark and cinematic — and it is the only screen that can show a price
+                moving. A delayed or simulated feed is labelled on the legend, the card and the row.</p>
+              </div>
+            </div>
+            <div class="rule"></div>
+            <h3>Palette</h3>
+            <div class="swatch-grid">
+              <div class="swatch-card"><div class="fill" style="background:#12161c"></div><div class="meta"><b>ink</b><code>#12161c</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#fbfaf7"></div><div class="meta"><b>paper</b><code>#fbfaf7</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#1f5f8b"></div><div class="meta"><b>accent</b><code>#1f5f8b</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#1c6b46"></div><div class="meta"><b>pass</b><code>#1c6b46</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#8a5a00"></div><div class="meta"><b>caution</b><code>#8a5a00</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#8c2f2f"></div><div class="meta"><b>stop</b><code>#8c2f2f</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#080c12"></div><div class="meta"><b>stage</b><code>#080c12</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#6cc6f5"></div><div class="meta"><b>track 1</b><code>#6cc6f5</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#f2b134"></div><div class="meta"><b>track 2</b><code>#f2b134</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#67d18a"></div><div class="meta"><b>track 3</b><code>#67d18a</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#7cf0b4"></div><div class="meta"><b>live</b><code>#7cf0b4</code></div></div>
+              <div class="swatch-card"><div class="fill" style="background:#f6cd6b"></div><div class="meta"><b>simulated</b><code>#f6cd6b</code></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 01 dashboard -->
+      <section class="artboard" id="ab-dashboard">
+        <header>
+          <span class="label">01 · Dashboard</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">Data is the real preview store: champion V01, 3 hypotheses all rejected, one paper session.</span>
+        </header>
+        <div class="frame selectable evidence" id="dashboard" style="width:1440px">
+          <div class="sheet">
+
+            <div class="row between" id="nav" style="border-bottom:2px solid var(--ink);padding-bottom:11px;margin-bottom:18px">
+              <div>
+                <p class="eyebrow">Research dashboard</p>
+                <h1>Strategy Intelligence</h1>
+                <p class="small muted">SYNTH · 1d · sample 2015-01-02 → 2021-07-08 · evidence as of 2026-10-25 16:44Z</p>
+              </div>
+              <div class="row" style="gap:8px;align-items:center;padding-top:6px">
+                <span class="badge bad">live trading disabled</span>
+                <span class="btn secondary sm">3D live market view →</span>
+              </div>
+            </div>
+
+            <div class="row" style="gap:14px;margin-bottom:14px">
+              <!-- champion -->
+              <div class="panel grow" id="champion">
+                <div class="row between" style="align-items:flex-start">
+                  <div>
+                    <h3>Champion</h3>
+                    <div class="row" style="align-items:baseline;gap:10px">
+                      <span style="font-size:26px;font-weight:700;letter-spacing:-.02em">V01</span>
+                      <span class="badge accent">Paper Testing</span>
+                      <span class="badge neutral">awaiting user approval</span>
+                    </div>
+                    <p class="small muted" style="margin:6px 0 0">Baseline momentum · registered 2026-10-25 ·
+                    4 versions stored, 0 accepted by the gates.</p>
+                  </div>
+                  <div style="text-align:right">
+                    <p class="tiny muted" style="margin:0">Next step</p>
+                    <p class="small" style="margin:2px 0 0;font-weight:600">CLI-only approvals</p>
+                    <p class="tiny muted" style="margin:2px 0 0">the page cannot promote or enable</p>
+                  </div>
+                </div>
+                <div class="rule"></div>
+                <div id="stepper">
+                  <h3 style="margin-bottom:10px">Promotion pipeline</h3>
+                  <ul class="stepper">
+                    <li><span class="pip filled"></span><span class="t">Backtest</span><span class="d">recorded</span></li>
+                    <li><span class="pip filled"></span><span class="t">Out-of-sample</span><span class="d">10 trades · +0.094R</span></li>
+                    <li><span class="pip filled"></span><span class="t">Walk-forward</span><span class="d">4 folds · -0.006R</span></li>
+                    <li><span class="pip filled"></span><span class="t">Robustness</span><span class="d">16 variants · fragile</span></li>
+                    <li><span class="pip filled"></span><span class="t">Paper</span><span class="d">14 trades · +0.678R</span></li>
+                    <li><span class="pip hollow"></span><span class="t">Risk review</span><span class="d">0 blocks recorded</span></li>
+                    <li class="off"><span class="pip current"></span><span class="t">Approval</span><span class="d">waiting on a human</span></li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- run + action -->
+              <div style="width:376px" class="col">
+                <div class="panel tight">
+                  <h3>Last run</h3>
+                  <dl class="rows" style="grid-template-columns:104px 1fr;padding:0">
+                    <dt>when</dt><dd class="num">25 Oct 2026 · 16:44Z</dd>
+                    <dt>hypotheses</dt><dd class="num">3 proposed · 3 rejected</dd>
+                    <dt>cost model</dt><dd class="num">commission + slippage + spread</dd>
+                    <dt>holdout</dt><dd class="num">1 window · 3 of 3 uses</dd>
+                  </dl>
+                </div>
+                <div class="panel">
+                  <h3>Take a paper trade</h3>
+                  <div class="field" style="margin-bottom:10px">
+                    <label>version</label>
+                    <div class="select">V01 — champion <span class="caret">▾</span></div>
+                  </div>
+                  <div class="row" style="gap:10px;margin-bottom:10px">
+                    <div class="field grow">
+                      <label>forward trades to pass</label>
+                      <div class="input num">5</div>
+                    </div>
+                    <div class="field grow">
+                      <label>forward bars to start</label>
+                      <div class="input num">30</div>
+                    </div>
+                  </div>
+                  <p class="hint" style="margin-bottom:11px">Trades the version forward over bars after its
+                  out-of-sample window. No broker, no orders, no capital.</p>
+                  <div class="row between">
+                    <span class="btn">Run paper session</span>
+                    <span class="tiny muted">one session per click</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="kpis" id="kpis" style="margin-bottom:14px">
+              <div class="kpi">
+                <p class="k">Paper expectancy</p>
+                <p class="v up">+0.678<small>R</small></p>
+                <p class="s">14 forward trades · verdict passed</p>
+              </div>
+              <div class="kpi">
+                <p class="k">Out-of-sample</p>
+                <p class="v">+0.094<small>R</small></p>
+                <p class="s">10 trades · below the bar that matters</p>
+              </div>
+              <div class="kpi">
+                <p class="k">Paper net PnL</p>
+                <p class="v up">+4,811.51</p>
+                <p class="s">after costs · 2020-07-01 → 2021-07-08</p>
+              </div>
+              <div class="kpi">
+                <p class="k">Max drawdown</p>
+                <p class="v">1.6<small>%</small></p>
+                <p class="s">paper window · 267 bars</p>
+              </div>
+            </div>
+
+            <!-- verdict -->
+            <div class="verdict stop" id="verdict" style="margin-bottom:14px">
+              <div class="head">
+                <span class="mark">NO TRADE</span>
+                <span class="badge bad">latest candidate rejected</span>
+                <span class="tiny muted">H-20261025-beaac5 · "Losing trades cluster in low-ADX conditions"</span>
+              </div>
+              <p class="why">The gates refused it for six measurable reasons. This is the product
+              working: the engine would rather hold cash than lower the bar.</p>
+              <ul class="gates">
+                <li><span class="g">sample size</span><span class="n fail">12 trades</span></li>
+                <li><span class="g">out-of-sample sample</span><span class="n fail">10 trades</span></li>
+                <li><span class="g">beats baseline</span><span class="n fail">+0.094R</span></li>
+                <li><span class="g">walk-forward consistency</span><span class="n fail">0% of 4 folds · −0.006R</span></li>
+                <li><span class="g">parameter sensitivity</span><span class="n fail">100% fragile · 16 variants</span></li>
+                <li><span class="g">significance</span><span class="n fail">p = 0.9949 · effect −0.02</span></li>
+              </ul>
+            </div>
+
+            <!-- sessions + counts -->
+            <div class="row" style="gap:14px;margin-bottom:14px">
+              <div class="panel flush grow" id="sessions">
+                <div class="panel-head">
+                  <h2>Paper sessions</h2>
+                  <span class="tiny muted">append-only · 1 recorded</span>
+                </div>
+                <table class="grid">
+                  <thead>
+                    <tr>
+                      <th>session</th><th>version</th><th>window</th>
+                      <th class="num">bars</th><th class="num">trades</th>
+                      <th class="num">expectancy</th><th class="num">net</th><th>verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono">PPR-20261025-a01a84</td>
+                      <td>V01</td>
+                      <td class="num">2020-07-01 → 2021-07-08</td>
+                      <td class="num">267</td>
+                      <td class="num">14</td>
+                      <td class="num up">+0.678R</td>
+                      <td class="num up">+4,811.51</td>
+                      <td><span class="badge ok">passed</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="panel-foot">A passing session makes a version eligible for the approval
+                conversation. It approves nothing.</div>
+              </div>
+
+              <div class="panel" id="counts" style="width:392px">
+                <h3>Evidence on file</h3>
+                <div class="row" style="gap:0;align-items:stretch">
+                  <div class="grow" style="border-right:1px solid var(--line);padding-right:14px">
+                    <p class="v num" style="font-size:30px;margin:0;font-weight:650;letter-spacing:-.02em">3</p>
+                    <p class="tiny muted" style="margin:0">hypotheses tested</p>
+                  </div>
+                  <div class="grow" style="padding-left:14px">
+                    <p class="v num" style="font-size:30px;margin:0;font-weight:650;letter-spacing:-.02em">0</p>
+                    <p class="tiny muted" style="margin:0">accepted</p>
+                  </div>
+                </div>
+                <div class="rule"></div>
+                <dl class="rows" style="grid-template-columns:118px 1fr;padding:0">
+                  <dt>versions</dt><dd class="num">4 · V01 champion</dd>
+                  <dt>rejected</dt><dd class="num">3 (all with a named gate)</dd>
+                  <dt>holdout budget</dt><dd class="num">3 of 3 uses, 2019-02-18 → 2020-06-30</dd>
+                  <dt>risk blocks</dt><dd class="num">0</dd>
+                </dl>
+              </div>
+            </div>
+
+            <!-- risk + note -->
+            <div class="row" style="gap:14px">
+              <div class="panel grow" id="risk">
+                <h3>Risk policy · frozen</h3>
+                <div class="kpis three" style="gap:8px">
+                  <div class="kpi" style="border:0;padding:6px 0;background:transparent">
+                    <p class="k">per trade</p><p class="v" style="font-size:20px">1.0<small>%</small></p>
+                  </div>
+                  <div class="kpi" style="border:0;padding:6px 0;background:transparent">
+                    <p class="k">leverage</p><p class="v" style="font-size:20px">1.0<small>×</small></p>
+                  </div>
+                  <div class="kpi" style="border:0;padding:6px 0;background:transparent">
+                    <p class="k">open positions</p><p class="v" style="font-size:20px">1</p>
+                  </div>
+                </div>
+                <p class="hint">A strategy may request a size; the engine caps it and only ever shrinks it.
+                Any change that loosens a limit is refused, and no research output can grant live trading.</p>
+              </div>
+              <div class="panel" style="width:520px">
+                <h3>What this screen will not do</h3>
+                <ul class="small" style="margin:0;padding-left:16px;color:#374151;line-height:1.75">
+                  <li>approve, promote, roll back or change the risk policy (CLI only)</li>
+                  <li>enable live trading, or accept a typed confirmation</li>
+                  <li>place an order: there is no broker in this repository</li>
+                </ul>
+                <p class="hint" style="margin-top:8px">The one action is the paper session above. Everything
+                else is a deliberate command with the champion's version typed out.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 02 mobile -->
+      <section class="artboard" id="ab-mobile">
+        <header>
+          <span class="label">02 · Dashboard · narrow</span>
+          <span class="dims">390 × content</span>
+          <span class="note">Same hierarchy, one column. The verdict stays above the fold; the form collapses to a button.</span>
+        </header>
+        <div class="frame selectable evidence" id="mobile" style="width:390px" data-narrow>
+          <div class="sheet dense" style="padding:20px 18px">
+            <div style="border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:14px">
+              <p class="eyebrow">Research dashboard</p>
+              <h1 style="font-size:22px">Strategy Intelligence</h1>
+              <p class="tiny muted" style="margin:4px 0 8px">SYNTH · 1d · evidence 16:44Z</p>
+              <div class="row" style="gap:6px">
+                <span class="badge bad">live disabled</span>
+                <span class="badge accent">V01 paper testing</span>
+              </div>
+            </div>
+
+            <div class="panel tight" style="margin-bottom:12px">
+              <div class="row between" style="margin-bottom:8px">
+                <h3 style="margin:0">Champion</h3>
+                <span class="small num" style="font-weight:700">V01</span>
+              </div>
+              <ul class="stepper" style="transform:scale(.98);transform-origin:left">
+                <li><span class="pip filled"></span><span class="t">BT</span></li>
+                <li><span class="pip filled"></span><span class="t">OOS</span></li>
+                <li><span class="pip filled"></span><span class="t">WF</span></li>
+                <li><span class="pip filled"></span><span class="t">Rob.</span></li>
+                <li><span class="pip filled"></span><span class="t">Paper</span></li>
+                <li><span class="pip hollow"></span><span class="t">Risk</span></li>
+                <li><span class="pip current"></span><span class="t">Approval</span></li>
+              </ul>
+            </div>
+
+            <div class="verdict stop" style="padding:12px 13px;margin-bottom:12px">
+              <div class="row between" style="margin-bottom:6px">
+                <span class="mark" style="font-size:15px">NO TRADE</span>
+                <span class="badge bad">rejected</span>
+              </div>
+              <p class="tiny" style="color:#4b5563;margin:0 0 7px">Six gates failed. The engine holds cash
+              rather than lower the bar.</p>
+              <ul class="gates" style="grid-template-columns:1fr;gap:0">
+                <li><span class="g" style="min-width:0;flex:1">sample size</span><span class="n fail">12 trades</span></li>
+                <li><span class="g" style="min-width:0;flex:1">out-of-sample</span><span class="n fail">10 trades</span></li>
+                <li><span class="g" style="min-width:0;flex:1">beats baseline</span><span class="n fail">+0.094R</span></li>
+                <li><span class="g" style="min-width:0;flex:1">walk-forward</span><span class="n fail">0% of 4</span></li>
+                <li><span class="g" style="min-width:0;flex:1">sensitivity</span><span class="n fail">100% fragile</span></li>
+                <li><span class="g" style="min-width:0;flex:1">significance</span><span class="n fail">p 0.9949</span></li>
+              </ul>
+            </div>
+
+            <div class="kpis" style="grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+              <div class="kpi" style="padding:9px 11px">
+                <p class="k">paper expectancy</p><p class="v up" style="font-size:20px">+0.678<small>R</small></p>
+              </div>
+              <div class="kpi" style="padding:9px 11px">
+                <p class="k">paper net</p><p class="v up" style="font-size:20px">+4,811</p>
+              </div>
+              <div class="kpi" style="padding:9px 11px">
+                <p class="k">oos expectancy</p><p class="v" style="font-size:20px">+0.094<small>R</small></p>
+              </div>
+              <div class="kpi" style="padding:9px 11px">
+                <p class="k">max dd</p><p class="v" style="font-size:20px">1.6<small>%</small></p>
+              </div>
+            </div>
+
+            <div class="panel flush" style="margin-bottom:12px">
+              <div class="panel-head"><h2 style="font-size:13px">Paper sessions</h2><span class="tiny muted">1</span></div>
+              <div style="padding:11px 13px">
+                <div class="row between" style="margin-bottom:4px">
+                  <span class="mono tiny">PPR-…-a01a84</span>
+                  <span class="badge ok">passed</span>
+                </div>
+                <p class="tiny muted" style="margin:0">2020-07-01 → 2021-07-08 · 14 trades · +4,811.51</p>
+              </div>
+            </div>
+
+            <div class="panel tight" style="margin-bottom:12px">
+              <h3>Run a paper session</h3>
+              <p class="hint" style="margin-bottom:9px">Forward bars only, costs included, no capital at risk.</p>
+              <div class="select" style="margin-bottom:8px">V01 — champion <span class="caret">▾</span></div>
+              <span class="btn" style="width:100%;justify-content:center">Run paper session</span>
+            </div>
+
+            <div class="panel tight">
+              <h3>Evidence on file</h3>
+              <dl class="rows" style="grid-template-columns:96px 1fr;padding:0">
+                <dt>hypotheses</dt><dd class="num">3 · 0 accepted</dd>
+                <dt>versions</dt><dd class="num">4</dd>
+                <dt>holdout</dt><dd class="num">3 of 3 uses</dd>
+                <dt>risk blocks</dt><dd class="num">0</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 03 live -->
+      <section class="artboard" id="ab-live">
+        <header>
+          <span class="label">03 · 3D live market view</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">The scene is rendered from the app's own geometry (docs/design/scene.svg). Feeds here are replay fixtures, so every label reads simulated.</span>
+        </header>
+        <div class="frame selectable market" id="live" style="width:1440px">
+          <div class="sheet">
+            <div class="masthead">
+              <p class="eyebrow">Live market view · 3D</p>
+              <h1 style="color:var(--mink)">Markets in motion</h1>
+              <p class="small muted">3 of 4 feeds up · delayed / simulated · built 2026-10-25 17:31Z · collecting since 17:24Z</p>
+            </div>
+
+            <div class="notice" style="margin-bottom:16px">
+              <b style="color:#eaf3ff">Display only.</b> Nothing on this page reaches a backtest, a paper
+              verdict or a research result. Each feed states what it is — real-time, delayed or simulated —
+              and an unreachable endpoint is reported as unavailable rather than papered over.
+            </div>
+
+            <div class="stage scene" id="stage" style="margin-bottom:14px">
+              <!--{{SCENE}}-->
+              <div class="hud top">
+                <span class="pill sim">SIMULATED · 3/4 live</span>
+                <span class="meta">60 fps · 17:31:04</span>
+              </div>
+              <div class="hud controls">
+                <span class="stage-btn" aria-pressed="true">Auto-rotate</span>
+                <span class="stage-btn">Reset view</span>
+                <span class="stage-btn">Flat table</span>
+              </div>
+              <span class="price-tag up sim" style="left:63.2%;top:35.4%"><b>ALPHA</b>106.19</span>
+              <span class="price-tag down sim" style="left:73.4%;top:44.2%"><b>BETA</b>111.36</span>
+              <span class="price-tag up sim" style="left:56.1%;top:52.1%"><b>GAMMA</b>96.20</span>
+              <ul class="legend" id="legend">
+                <li><span class="dot" style="background:#6cc6f5"></span><span class="sym">ALPHA</span><span class="px">106.19</span><span class="up">+7.32%</span><span class="badge sim">simulated</span></li>
+                <li><span class="dot" style="background:#f2b134"></span><span class="sym">BETA</span><span class="px">111.36</span><span class="down">−8.24%</span><span class="badge sim">simulated</span></li>
+                <li><span class="dot" style="background:#67d18a"></span><span class="sym">GAMMA</span><span class="px">96.20</span><span class="up">+2.10%</span><span class="badge sim">simulated</span></li>
+                <li><span class="dot" style="background:#8fa3b8"></span><span class="sym">RELIANCE.NS</span><span class="px">—</span><span class="badge down">unavailable</span></li>
+              </ul>
+              <p class="stage-hint">drag to orbit · scroll to zoom · double-click to pause</p>
+            </div>
+
+            <div class="kpis" style="margin-bottom:14px">
+              <div class="kpi"><p class="k">ALPHA</p><p class="v up">106.19</p><p class="s">93 candles · 93 ticks · replay</p></div>
+              <div class="kpi"><p class="k">BETA</p><p class="v down">111.36</p><p class="s">93 candles · 93 ticks · replay</p></div>
+              <div class="kpi"><p class="k">GAMMA</p><p class="v up">96.20</p><p class="s">93 candles · 93 ticks · replay</p></div>
+              <div class="kpi"><p class="k">RELIANCE.NS</p><p class="v" style="color:var(--mmuted)">—</p><p class="s">delayed · vendor unreachable</p></div>
+            </div>
+
+            <div class="panel flush" id="tape" style="margin-bottom:14px">
+              <div class="panel-head">
+                <h2>The tape</h2>
+                <span class="tiny muted">labels travel with the data</span>
+              </div>
+              <table class="grid">
+                <thead>
+                  <tr>
+                    <th>symbol</th><th>provider</th><th>quality</th><th>status</th>
+                    <th class="num">last</th><th class="num">change</th>
+                    <th class="num">candles</th><th class="num">ticks</th>
+                    <th>last 40 candles</th><th>source / note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b>ALPHA</b></td><td>replay</td>
+                    <td><span class="badge sim">simulated</span></td><td>simulated</td>
+                    <td class="num">106.19</td><td class="num up">+7.32%</td>
+                    <td class="num">93</td><td class="num">93</td>
+                    <td><svg class="sparkline" width="132" height="34" viewBox="0 0 132 34"><polyline points="2,26 12,24 22,27 32,23 42,19 52,21 62,17 72,14 82,16 92,11 102,9 112,6 122,4 130,3" stroke="#6cc6f5"/></svg></td>
+                    <td class="tiny muted">simulated replay on a compressed clock</td>
+                  </tr>
+                  <tr>
+                    <td><b>BETA</b></td><td>replay</td>
+                    <td><span class="badge sim">simulated</span></td><td>simulated</td>
+                    <td class="num">111.36</td><td class="num down">−8.24%</td>
+                    <td class="num">93</td><td class="num">93</td>
+                    <td><svg class="sparkline" width="132" height="34" viewBox="0 0 132 34"><polyline points="2,8 12,11 22,9 32,14 42,12 52,17 62,15 72,20 82,18 92,23 102,21 112,26 122,24 130,28" stroke="#f2b134"/></svg></td>
+                    <td class="tiny muted">simulated replay on a compressed clock</td>
+                  </tr>
+                  <tr>
+                    <td><b>GAMMA</b></td><td>replay</td>
+                    <td><span class="badge sim">simulated</span></td><td>simulated</td>
+                    <td class="num">96.20</td><td class="num up">+2.10%</td>
+                    <td class="num">93</td><td class="num">93</td>
+                    <td><svg class="sparkline" width="132" height="34" viewBox="0 0 132 34"><polyline points="2,20 12,18 22,21 32,17 42,19 52,15 62,17 72,13 82,15 92,12 102,14 112,10 122,12 130,9" stroke="#67d18a"/></svg></td>
+                    <td class="tiny muted">simulated replay on a compressed clock</td>
+                  </tr>
+                  <tr>
+                    <td><b>RELIANCE.NS</b></td><td>poll</td>
+                    <td><span class="badge delayed">delayed</span></td><td>unavailable</td>
+                    <td class="num">—</td><td class="num">—</td>
+                    <td class="num">0</td><td class="num">0</td>
+                    <td class="tiny muted" style="padding:2px 10px">no data</td>
+                    <td class="tiny muted">VendorUnavailableError: Yahoo Finance request failed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="row" style="gap:14px">
+              <div class="panel grow" id="freetable">
+                <h3>What is actually free</h3>
+                <table class="grid">
+                  <thead><tr><th>provider</th><th>kind</th><th>what you get</th><th>cost</th></tr></thead>
+                  <tbody>
+                    <tr><td><b>binance</b></td><td>websocket</td><td>real-time trade prints</td><td>free, keyless</td></tr>
+                    <tr><td><b>coinbase</b></td><td>websocket</td><td>real-time match feed</td><td>free, keyless</td></tr>
+                    <tr><td><b>kraken</b></td><td>websocket</td><td>real-time trade prints</td><td>free, keyless</td></tr>
+                    <tr><td><b>poll</b></td><td>poll</td><td>delayed quotes, ~15 min for NSE</td><td>free, keyless</td></tr>
+                    <tr><td><b>generic</b></td><td>websocket</td><td>your broker's stream</td><td>your API key</td></tr>
+                    <tr><td><b>replay</b></td><td>replay</td><td>historical bars, simulated</td><td>free, offline</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="panel" style="width:470px">
+                <h3>Indian equities: no free WebSocket</h3>
+                <p class="small muted" style="margin-bottom:8px">NSE and BSE license real-time data through
+                brokers. Every honest route needs your own credentials.</p>
+                <table class="grid">
+                  <thead><tr><th>broker</th><th>needs</th><th>free?</th></tr></thead>
+                  <tbody>
+                    <tr><td>Kite</td><td>API key + token, paid plan</td><td class="down">no</td></tr>
+                    <tr><td>Upstox</td><td>developer app key</td><td class="down">no</td></tr>
+                    <tr><td>Angel One</td><td>key + client code + TOTP</td><td class="down">no</td></tr>
+                  </tbody>
+                </table>
+                <p class="hint" style="margin-top:8px;color:var(--mmuted)">Attach one with
+                <span class="mono">--feed generic:RELIANCE --feed-url …</span>. The key comes from the
+                environment and is never shown on this page.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 04 components -->
+      <section class="artboard" id="ab-components">
+        <header>
+          <span class="label">04 · Components and states</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">Everything the two screens are built from, with the states that matter: refused, pending, simulated, empty.</span>
+        </header>
+        <div class="frame selectable evidence" id="components" style="width:1440px">
+          <div class="sheet">
+            <div class="masthead"><h1 style="font-size:24px">Components</h1>
+              <p class="small muted">Evidence theme above the fold, market theme below it. One component set, two skins.</p></div>
+
+            <div class="row" style="gap:16px;align-items:flex-start">
+              <div class="grow col">
+                <div class="panel">
+                  <h3>Buttons</h3>
+                  <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap">
+                    <span class="btn">Run paper session</span>
+                    <span class="btn secondary">3D live market view →</span>
+                    <span class="btn ghost">Why NO TRADE?</span>
+                    <span class="btn danger">Roll back</span>
+                    <span class="btn" disabled>Approve (CLI only)</span>
+                  </div>
+                  <p class="hint" style="margin-top:9px">Disabled is the honest state for an action the browser
+                  cannot take. It is never hidden, so the reason can be explained in place.</p>
+                </div>
+
+                <div class="panel">
+                  <h3>Badges</h3>
+                  <div class="row" style="gap:8px;flex-wrap:wrap">
+                    <span class="badge ok">passed</span>
+                    <span class="badge warn">pending</span>
+                    <span class="badge bad">failed</span>
+                    <span class="badge accent">Paper Testing</span>
+                    <span class="badge neutral">Rolled Back</span>
+                    <span class="badge bad">live trading disabled</span>
+                  </div>
+                  <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+                    <span class="badge sim" style="color:#8a5a00;background:#fdf6e6;border-color:#e6cf9b">simulated</span>
+                    <span class="badge delayed" style="color:#8a5a00;background:#fbf2df;border-color:#e6cf9b">delayed</span>
+                    <span class="badge neutral">unavailable</span>
+                  </div>
+                </div>
+
+                <div class="panel">
+                  <h3>Form</h3>
+                  <div class="row" style="gap:12px">
+                    <div class="field grow"><label>version</label><div class="select">V01 — champion <span class="caret">▾</span></div></div>
+                    <div class="field grow"><label>forward trades to pass</label><div class="input num">5</div></div>
+                    <div class="field grow"><label>start (optional)</label><div class="input placeholder">2020-07-01</div></div>
+                  </div>
+                  <p class="hint" style="margin-top:8px">A declared start is recorded as declared: if it overlaps
+                  the sample the version was chosen on, the session is not a forward test.</p>
+                </div>
+
+                <div class="panel">
+                  <h3>Table row</h3>
+                  <table class="grid">
+                    <thead><tr><th>version</th><th>status</th><th class="num">trades</th><th class="num">expectancy</th><th class="num">net</th></tr></thead>
+                    <tbody>
+                      <tr><td><b>V01</b></td><td><span class="badge accent">Paper Testing</span></td><td class="num">14</td><td class="num up">+0.678R</td><td class="num up">+4,811.51</td></tr>
+                      <tr><td>V02</td><td><span class="badge neutral">Rejected</span></td><td class="num">12</td><td class="num down">−0.021R</td><td class="num down">−312.04</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="grow col">
+                <div class="panel">
+                  <h3>KPI tile</h3>
+                  <div class="kpis" style="grid-template-columns:1fr 1fr;gap:8px">
+                    <div class="kpi"><p class="k">expectancy</p><p class="v up">+0.678<small>R</small></p><p class="s">14 trades</p></div>
+                    <div class="kpi"><p class="k">drawdown</p><p class="v">1.6<small>%</small></p><p class="s">paper window</p></div>
+                  </div>
+                  <p class="hint" style="margin-top:9px">Value first, unit in a smaller weight, the qualifier
+                  underneath. Never a bare number without its unit.</p>
+                </div>
+
+                <div class="panel">
+                  <h3>Verdict block</h3>
+                  <div class="verdict" style="padding:11px 13px">
+                    <div class="head" style="margin-bottom:5px"><span class="mark" style="font-size:14px">NO TRADE</span><span class="badge warn">insufficient sample</span></div>
+                    <p class="tiny" style="color:#4b5563;margin:0">3 gates failed · the reason is the message, not a spinner.</p>
+                  </div>
+                  <div class="verdict stop" style="padding:11px 13px;margin-top:9px">
+                    <div class="head" style="margin-bottom:5px"><span class="mark" style="font-size:14px">NO TRADE</span><span class="badge bad">rejected</span></div>
+                    <p class="tiny" style="color:#4b5563;margin:0">Candidate refused by the gates.</p>
+                  </div>
+                  <p class="hint" style="margin-top:9px">Amber when the sample is thin, red when a gate refused.
+                  Both are results; neither is an error.</p>
+                </div>
+
+                <div class="panel">
+                  <h3>Feed states</h3>
+                  <table class="grid">
+                    <tbody>
+                      <tr><td><span class="badge live" style="color:#1c6b46;background:#eaf5ee;border-color:#9dc7b0">live</span></td><td class="tiny muted">keyless public stream, real-time</td></tr>
+                      <tr><td><span class="badge delayed" style="color:#8a5a00;background:#fbf2df;border-color:#e6cf9b">delayed</span></td><td class="tiny muted">vendor polling, ~15 min</td></tr>
+                      <tr><td><span class="badge sim" style="color:#8a5a00;background:#fdf6e6;border-color:#e6cf9b">simulated</span></td><td class="tiny muted">replay of stored bars</td></tr>
+                      <tr><td><span class="badge bad">unavailable</span></td><td class="tiny muted">endpoint refused; error text shown</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="panel">
+                  <h3>Empty state</h3>
+                  <div style="border:1px dashed var(--line-strong);border-radius:8px;padding:18px;text-align:center;background:#fdfcf9">
+                    <p class="small" style="margin:0 0 3px;font-weight:600">No feed configured</p>
+                    <p class="tiny muted" style="margin:0">Start the server with <span class="mono">--feed binance:BTCUSDT</span>.
+                    Nothing is being streamed, and nothing is being faked.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="market panel" style="margin-top:16px;padding:16px 18px">
+              <h3 style="color:#8fa3b8">Market skin · the same components</h3>
+              <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap">
+                <span class="pill sim">SIMULATED · 3/4 live</span>
+                <span class="pill live">LIVE · 4/4</span>
+                <span class="pill warn">STALE · render-time data</span>
+                <span class="pill down">NO FEED</span>
+                <span class="stage-btn" aria-pressed="true">Auto-rotate</span>
+                <span class="stage-btn">Flat table</span>
+                <span class="price-tag up sim" style="position:static"><b>ALPHA</b>106.19</span>
+                <span class="price-tag down sim" style="position:static"><b>BETA</b>111.36</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ 05 handoff -->
+      <section class="artboard" id="ab-handoff">
+        <header>
+          <span class="label">05 · Handoff</span>
+          <span class="dims">1440 × content</span>
+          <span class="note">Tokens, redlines and the copy rules that keep the honesty properties intact in a redesign.</span>
+        </header>
+        <div class="frame selectable evidence" id="handoff" style="width:1440px">
+          <div class="sheet">
+            <div class="masthead"><h1 style="font-size:24px">Handoff</h1>
+              <p class="small muted">If this file is used to rebuild the screens, these are the parts that must survive.</p></div>
+
+            <div class="row" style="gap:16px;align-items:flex-start;margin-bottom:16px">
+              <div class="panel grow">
+                <h3>Type scale</h3>
+                <table class="grid">
+                  <tbody>
+                    <tr><td class="mono tiny">display</td><td style="font-size:34px;font-weight:700;letter-spacing:-.02em">34 / 650</td></tr>
+                    <tr><td class="mono tiny">h1</td><td style="font-size:27px;font-weight:650;letter-spacing:-.015em">27 / 650</td></tr>
+                    <tr><td class="mono tiny">h2</td><td style="font-size:20px;font-weight:650">20 / 650</td></tr>
+                    <tr><td class="mono tiny">h3</td><td style="font-size:17px;font-weight:650">17 / 650</td></tr>
+                    <tr><td class="mono tiny">label</td><td style="font-size:13px;font-weight:600">13 / 600</td></tr>
+                    <tr><td class="mono tiny">body</td><td style="font-size:13px">13 / 400 · the default</td></tr>
+                    <tr><td class="mono tiny">caption</td><td style="font-size:12px;color:#6b7280">12 / 400 · qualifiers</td></tr>
+                    <tr><td class="mono tiny">eyebrow</td><td style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#1f5f8b">11 / 700 / +0.14em</td></tr>
+                  </tbody>
+                </table>
+                <p class="hint" style="margin-top:8px">Numbers are always tabular. A column of metrics must line up
+                on the decimal, or the eye reads noise.</p>
+              </div>
+
+              <div class="panel" style="width:430px">
+                <h3>Spacing · 8-point base</h3>
+                <div class="col" style="gap:7px">
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">4</span><span style="height:8px;width:4px;background:#1f5f8b;display:block"></span><span class="tiny muted">badge inset</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">8</span><span style="height:8px;width:8px;background:#1f5f8b;display:block"></span><span class="tiny muted">chip gap</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">12</span><span style="height:8px;width:12px;background:#1f5f8b;display:block"></span><span class="tiny muted">card padding (tight)</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">16</span><span style="height:8px;width:16px;background:#1f5f8b;display:block"></span><span class="tiny muted">card padding</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">24</span><span style="height:8px;width:24px;background:#1f5f8b;display:block"></span><span class="tiny muted">section rhythm</span></div>
+                  <div class="row" style="align-items:center;gap:9px"><span class="mono tiny" style="width:26px">34</span><span style="height:8px;width:34px;background:#1f5f8b;display:block"></span><span class="tiny muted">page gutter (1440)</span></div>
+                </div>
+                <div class="rule"></div>
+                <h3>Radius</h3>
+                <div class="row" style="gap:8px;align-items:flex-end">
+                  <div style="width:40px;height:28px;border:1px solid #c9c4b8;border-radius:4px;background:#fff"></div>
+                  <div style="width:40px;height:28px;border:1px solid #c9c4b8;border-radius:6px;background:#fff"></div>
+                  <div style="width:40px;height:28px;border:1px solid #c9c4b8;border-radius:8px;background:#fff"></div>
+                  <div style="width:40px;height:28px;border:1px solid #c9c4b8;border-radius:12px;background:#fff"></div>
+                  <div style="width:52px;height:24px;border:1px solid #c9c4b8;border-radius:999px;background:#fff"></div>
+                </div>
+                <p class="hint" style="margin-top:7px">4 · 6 · 8 · 12 · pill. The 3D stage is the only 12px surface.</p>
+              </div>
+
+              <div class="panel" style="width:392px">
+                <h3>Contrast</h3>
+                <table class="grid">
+                  <tbody>
+                    <tr><td class="tiny">ink on paper</td><td class="mono tiny">15.9:1</td><td><span class="badge ok">AA+</span></td></tr>
+                    <tr><td class="tiny">muted on paper</td><td class="mono tiny">5.4:1</td><td><span class="badge ok">AA</span></td></tr>
+                    <tr><td class="tiny">accent on white</td><td class="mono tiny">6.6:1</td><td><span class="badge ok">AA</span></td></tr>
+                    <tr><td class="tiny">live on stage</td><td class="mono tiny">11.2:1</td><td><span class="badge ok">AA+</span></td></tr>
+                    <tr><td class="tiny">sim on stage</td><td class="mono tiny">10.4:1</td><td><span class="badge ok">AA+</span></td></tr>
+                  </tbody>
+                </table>
+                <p class="hint" style="margin-top:8px">Colour is never the only signal: every state also carries a word.</p>
+              </div>
+            </div>
+
+            <div class="row" style="gap:16px;align-items:flex-start">
+              <div class="panel grow">
+                <h3>Copy rules (these are the product)</h3>
+                <div class="spec" style="grid-template-columns:1fr">
+                  <ul>
+                    <li><b>Never call a delayed or simulated feed live.</b> The word appears on the legend,
+                    the card, the row and the JSON field.</li>
+                    <li><b>NO TRADE is a result.</b> It always names the gate and the number that failed it.</li>
+                    <li><b>Units travel with numbers:</b> R, %, currency, bars, folds.</li>
+                    <li><b>An unreachable feed reports its error</b>, never a stale price.</li>
+                    <li><b>Disabled actions stay visible</b> with the reason beside them: approvals are CLI-only.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="panel" style="width:520px">
+                <h3>Redlines</h3>
+                <div style="border:1px solid var(--line);border-radius:8px;padding:14px;position:relative;background:#fff">
+                  <div class="redline" data-m="16" style="padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:9px">
+                    <p class="eyebrow" style="margin:0">eyebrow · 11/700</p>
+                  </div>
+                  <div class="redline" data-m="24" style="margin-bottom:9px">
+                    <p style="font-size:27px;font-weight:650;letter-spacing:-.015em;margin:0">Heading · 27/650</p>
+                  </div>
+                  <div class="redline" data-m="8">
+                    <p class="tiny muted" style="margin:0">Meta line · 12.5 · muted</p>
+                  </div>
+                  <div style="display:flex;gap:8px;margin-top:12px">
+                    <span class="badge accent">badge</span>
+                    <span class="chip">chip · 11</span>
+                  </div>
+                </div>
+                <p class="hint" style="margin-top:8px">Gutter 34 · card gap 14 · panel padding 14/16 · row height 44.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ============================================================ inspector -->
+  <aside class="side right" aria-label="Inspector">
+    <div class="inspect-head">
+      <span class="chip" id="i-kind">fr</span>
+      <span class="title" id="i-title">01 · Dashboard</span>
+    </div>
+    <div class="block">
+      <h2>Properties</h2>
+      <dl class="rows" id="i-rows">
+        <dt>size</dt><dd class="mono">1440 × content</dd>
+        <dt>theme</dt><dd>evidence</dd>
+        <dt>grid</dt><dd class="mono">12 col · 84 gutter</dd>
+        <dt>layout</dt><dd>main 2fr · rail 376</dd>
+      </dl>
+    </div>
+    <div class="block">
+      <h2>Fills</h2>
+      <div class="swatches" id="i-swatches">
+        <span class="swatch" style="background:#fbfaf7" title="paper #fbfaf7"></span>
+        <span class="swatch" style="background:#ffffff" title="surface #ffffff"></span>
+        <span class="swatch" style="background:#12161c" title="ink #12161c"></span>
+      </div>
+    </div>
+    <div class="block">
+      <h2>Notes</h2>
+      <p class="tip" id="i-note"><b>What this frame is for.</b> One screen answers “what does the evidence
+      say, and what may I do about it?” — verdict first, action second, permissions spelled out.</p>
+    </div>
+    <div class="block">
+      <h2>Source of truth</h2>
+      <p class="tip">Drawn from the running app, not from memory:
+      <code>/api/snapshot</code> for the numbers, <code>docs/design/scene.svg</code> for the scene, and
+      <code>docs/design/tokens.json</code> for the palette.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* Board interactions: zoom, page jumps, layer selection, inspector, present mode.
+ *
+ * Deliberately small and dependency-free — the file has to open from disk with no server,
+ * which is also the constraint the product itself is built under.
+ */
+(function () {
+  'use strict';
+
+  const canvas = document.getElementById('canvas');
+  const inner = document.getElementById('canvas-inner');
+  const zoomValue = document.getElementById('zoom-value');
+  const steps = [0.2, 0.25, 0.3, 0.35, 0.42, 0.5, 0.6, 0.75, 1];
+  let zoom = 0.42;
+
+  /* `zoom` rather than `transform: scale()`, because a transform leaves the layout box at
+   * full size and the canvas then scrolls through empty space that is not there. */
+  function applyZoom(next) {
+    zoom = Math.max(0.15, Math.min(1, next));
+    inner.style.zoom = String(zoom);
+    zoomValue.textContent = Math.round(zoom * 100) + '%';
+    // Keep the scroll area honest for engines that ignore `zoom` on a flex container.
+    if (!('zoom' in inner.style)) inner.style.transform = 'scale(' + zoom + ')';
+  }
+
+  document.getElementById('zoom-in').addEventListener('click', () => {
+    const index = steps.findIndex((value) => value > zoom + 0.001);
+    applyZoom(index === -1 ? 1 : steps[index]);
+  });
+  document.getElementById('zoom-out').addEventListener('click', () => {
+    const index = steps.slice().reverse().findIndex((value) => value < zoom - 0.001);
+    applyZoom(index === -1 ? steps[0] : steps[steps.length - 1 - index]);
+  });
+  document.getElementById('zoom-fit').addEventListener('click', () => {
+    const width = canvas.clientWidth - 128;
+    applyZoom(Math.max(0.2, Math.min(1, width / 1440)));
+  });
+
+  document.getElementById('present').addEventListener('click', function () {
+    const on = document.body.classList.toggle('present');
+    this.setAttribute('aria-pressed', on ? 'true' : 'false');
+    this.textContent = on ? 'Exit present' : 'Present';
+    applyZoom(on ? 0.9 : 0.42);
+  });
+
+  function goTo(id) {
+    document.querySelectorAll('.artboard').forEach((board) => { board.style.outline = ''; });
+    const board = document.getElementById('ab-' + id);
+    if (!board) return;
+    board.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.querySelectorAll('.frame').forEach((frame) => frame.classList.remove('selected'));
+    board.querySelectorAll('.frame').forEach((frame) => frame.classList.add('selected'));
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.setAttribute('aria-selected', tab.dataset.goto === id ? 'true' : 'false');
+    });
+    document.querySelectorAll('.side.left .layer[data-goto]').forEach((layer) => {
+      if (layer.dataset.goto === id) layer.setAttribute('aria-current', 'true');
+      else layer.removeAttribute('aria-current');
+    });
+  }
+
+  document.querySelectorAll('[data-goto]').forEach((node) => {
+    node.addEventListener('click', () => goTo(node.dataset.goto));
+  });
+
+  const META = {
+    nav: { kind: 'cmp', title: 'TopNav', rows: [['height', '64'], ['rule', '2px ink'],
+      ['actions', 'status badge + link']], note: 'The status badge is part of the navigation: the first thing read is that live trading is off.' },
+    champion: { kind: 'cmp', title: 'ChampionCard', rows: [['version', 'V01'],
+      ['status', 'Paper Testing'], ['stage', 'awaiting_user_approval'], ['versions', '4 · 0 accepted']],
+      note: 'Champion, status and pipeline position in one block. “Awaiting approval” is stated as a state, never as a call to action.' },
+    stepper: { kind: 'cmp', title: 'PipelineStepper', rows: [['steps', '7'],
+      ['filled', 'evidence recorded'], ['hollow', 'no evidence yet'], ['current', 'approval']],
+      note: 'A filled pip means evidence exists on file — not that the stage passed its bar. The walk-forward pip is filled and still reports −0.006R.' },
+    kpis: { kind: 'cmp', title: 'KpiStrip', rows: [['columns', '4'], ['value', '24/650 tabular'],
+      ['unit', '13/600 muted'], ['qualifier', '11.5 muted']],
+      note: 'Paper numbers sit next to out-of-sample numbers on purpose: +0.678R forward, +0.094R out of sample. Hiding the weaker one would be a sales graph.' },
+    verdict: { kind: 'cmp', title: 'NoTradeVerdict', rows: [['state', 'rejected'],
+      ['gates', '6 named'], ['fill', 'wash-bad'], ['border', '4px stop']],
+      note: 'The headline of the product. Six failed gates, each with the number that failed it, and the hypothesis that proposed the idea.' },
+    sessions: { kind: 'tbl', title: 'PaperSessions', rows: [['rows', '1'], ['source', 'paper_sessions.jsonl'],
+      ['order', 'append-only'], ['verdict', 'badge']],
+      note: 'The record of what happened forward of the selection window. The footer repeats that passing approves nothing.' },
+    counts: { kind: 'cmp', title: 'EvidenceCounts', rows: [['hypotheses', '3'], ['accepted', '0'],
+      ['rejected', '3'], ['holdout', '3 of 3 uses']],
+      note: 'Zero accepted is shown as a number, not glossed over. The holdout budget being spent is a warning, not a footnote.' },
+    risk: { kind: 'cmp', title: 'RiskPolicy', rows: [['per trade', '1.0%'], ['leverage', '1.0x'],
+      ['positions', '1'], ['editable', 'CLI only']],
+      note: 'Read-only here by design: a browser cannot loosen a limit or grant live permission.' },
+    stage: { kind: 'cmp', title: 'MarketStage', rows: [['ratio', '16:9'], ['render', 'WebGL 1, inline'],
+      ['camera', 'orbit · 0.55 rad / 0.45 rad'], ['fallback', 'flat table']],
+      note: 'Hand-written WebGL: no CDN, because the page must work with the network off. The scene above is the app’s own geometry projected by its own camera.' },
+    legend: { kind: 'cmp', title: 'FeedLegend', rows: [['items', 'per feed'], ['quality', 'badge on every item'],
+      ['price', 'tabular'], ['unreachable', 'dash + badge']],
+      note: 'Quality is repeated inside each legend chip. A trader glancing at the legend still learns the data is simulated.' },
+    tape: { kind: 'tbl', title: 'TapeTable', rows: [['columns', '10'], ['sparkline', 'server-rendered SVG'],
+      ['note column', 'source or error'], ['hover', 'row wash']],
+      note: 'Sparklines are drawn by the server, so the table has shape even with JavaScript disabled. The note column carries the error text when a feed is down.' },
+    freetable: { kind: 'tbl', title: 'ProviderTable', rows: [['providers', '6'], ['cost', 'stated'],
+      ['indian brokers', 'separate table'], ['source', 'feeds.PROVIDERS']],
+      note: 'The table is generated from the same registry the server uses, so the documentation cannot drift from the code.' }
+  };
+
+  function selectLayer(id) {
+    const meta = META[id];
+    if (!meta) return;
+    document.getElementById('i-kind').textContent = meta.kind;
+    document.getElementById('i-title').textContent = meta.title;
+    const rows = document.getElementById('i-rows');
+    rows.innerHTML = meta.rows.map(([key, value]) =>
+      '<dt>' + key + '</dt><dd class="mono">' + value + '</dd>').join('');
+    document.getElementById('i-note').innerHTML = meta.note;
+    document.querySelectorAll('#tree .layer').forEach((layer) => {
+      if (layer.dataset.target === id) layer.setAttribute('aria-current', 'true');
+      else layer.removeAttribute('aria-current');
+    });
+    const target = document.getElementById(id);
+    document.querySelectorAll('.hl').forEach((node) => node.classList.remove('hl'));
+    if (target) {
+      target.style.outline = '2px solid #4c8dff';
+      target.style.outlineOffset = '2px';
+      target.classList.add('hl');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  document.querySelectorAll('#tree .layer').forEach((layer) => {
+    layer.addEventListener('click', () => selectLayer(layer.dataset.target));
+  });
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('#tree')) return;
+    const cleared = document.querySelector('.hl');
+    if (cleared) {
+      cleared.style.outline = '';
+      cleared.classList.remove('hl');
+    }
+  });
+
+  // A frame click selects its board, so the tab state stays honest.
+  document.querySelectorAll('.frame').forEach((frame) => {
+    frame.addEventListener('click', (event) => {
+      if (event.target.closest('#tree')) return;
+      const board = frame.closest('.artboard');
+      if (board) goTo(board.id.replace('ab-', ''));
+    });
+  });
+
+  applyZoom(0.42);
+  window.addEventListener('resize', () => {
+    if (document.body.classList.contains('present')) return;
+  });
+})();
+</script>
+</body>
+</html>
