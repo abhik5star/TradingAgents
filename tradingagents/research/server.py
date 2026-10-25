@@ -18,6 +18,11 @@ What it deliberately cannot do
   forward simulation and writes one record.
 * No new dependency: :mod:`http.server` and the standard library only.
 
+The same process also serves ``/feeds`` — the 3D market view built from
+:mod:`tradingagents.research.livepage` and the free feed hub in
+:mod:`tradingagents.research.feeds`. That page is display-only: it reads a feed hub
+and never writes to the store, so a live tape cannot leak into research evidence.
+
 The page is server-rendered from the same snapshot the report uses, so there is one
 source of truth and one theme. A POST must carry the per-process form token, which
 keeps a random page in another tab from triggering a session.
@@ -42,6 +47,8 @@ from tradingagents.research.data import (
 )
 from tradingagents.research.engine import EngineConfig
 from tradingagents.research.features import build_feature_table
+from tradingagents.research.feeds import FeedHub
+from tradingagents.research.livepage import render_live_page
 from tradingagents.research.paper import paper_history, paper_window_start, run_paper_session
 from tradingagents.research.risk import load_policy
 from tradingagents.research.store import ResearchStore
@@ -56,7 +63,8 @@ class DashboardApp:
                  context: str | None = None, confirm: str | None = None,
                  asset_type: str = "stock", initial_equity: float = 100_000.0,
                  costs: CostModel | None = None, start: str | None = None,
-                 end: str | None = None, frames: dict | None = None):
+                 end: str | None = None, frames: dict | None = None,
+                 feeds: FeedHub | None = None):
         self.store = store
         self.registry = StrategyRegistry(store)
         self.csv_dir = csv_dir
@@ -70,6 +78,8 @@ class DashboardApp:
         self.start = start
         self.end = end
         self.frames = frames
+        # A hub with no feeds still renders a complete (and honest) live page.
+        self.feeds = feeds if feeds is not None else FeedHub()
         self.token = secrets.token_urlsafe(18)
         self._flash: tuple[str, str] | None = None
 
@@ -161,6 +171,13 @@ class DashboardApp:
 
     def snapshot(self) -> dict[str, Any]:
         return build_snapshot(self.store, ticker=self.ticker)
+
+    def live_state(self) -> dict[str, Any]:
+        """The display snapshot for ``/api/feeds``; read-only, never written anywhere."""
+        return self.feeds.state()
+
+    def live_page(self) -> str:
+        return render_live_page(self.live_state(), back_href="/")
 
     def page(self, flash: str = "", tone: str = "info") -> str:
         snapshot = self.snapshot()
@@ -321,7 +338,7 @@ footer.credit {{ margin-top: 34px; border-top: 1px solid var(--line); padding-to
 <header class="masthead">
   <h1>Strategy Intelligence</h1>
   <p class="date">{ticker} · {timeframe} · sample {window} · live trading {live}</p>
-  <p class="meta">Evidence as of {generated}</p>
+  <p class="meta">Evidence as of {generated} · <a href="/feeds">3D live market view →</a></p>
 </header>
 
 {flash}
@@ -413,6 +430,16 @@ def make_handler(app: DashboardApp) -> type[BaseHTTPRequestHandler]:
                 self._send(HTTPStatus.OK, json.dumps(app.snapshot(), default=str),
                            "application/json")
                 return
+            if parsed.path == "/api/feeds":
+                self._send(HTTPStatus.OK, json.dumps(app.live_state(), default=str),
+                           "application/json")
+                return
+            if parsed.path == "/feeds":
+                try:
+                    self._send(HTTPStatus.OK, app.live_page())
+                except Exception as exc:  # a broken feed hub must not take the app down
+                    self._send(HTTPStatus.INTERNAL_SERVER_ERROR, _error_page(str(exc)))
+                return
             if parsed.path in ("/", "/index.html"):
                 flash = query.get("msg", [""])[0]
                 tone = query.get("tone", ["info"])[0]
@@ -459,6 +486,30 @@ def make_handler(app: DashboardApp) -> type[BaseHTTPRequestHandler]:
             self._redirect(f"/?tone={tone}&msg=" + _quote(message))
 
     return Handler
+
+
+def yahoo_price_fetcher(symbol: str) -> float | None:
+    """The last close from the data layer, for a ``poll:`` feed.
+
+    Delayed by whatever the vendor delays it by, which is why every ``poll`` feed is
+    labelled *delayed* and never called live. Returns ``None`` rather than a guess when
+    the vendor gives nothing useful.
+    """
+    import math
+    from datetime import UTC, datetime, timedelta
+
+    end = datetime.now(UTC).date()
+    start = end - timedelta(days=7)
+    frame = YahooDataSource().load(symbol, Timeframe.M5, start.isoformat(), end.isoformat())
+    if frame is None or getattr(frame, "empty", True):
+        return None
+    if "close" not in list(getattr(frame, "columns", [])):
+        return None
+    closes = frame["close"].dropna()
+    if closes.empty:
+        return None
+    close = float(closes.iloc[-1])
+    return close if math.isfinite(close) and close > 0 else None
 
 
 def _error_page(message: str) -> str:

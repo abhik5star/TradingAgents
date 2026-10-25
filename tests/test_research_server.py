@@ -203,3 +203,65 @@ def test_over_http_the_form_token_is_enforced_and_the_redirect_reports_the_resul
 
     status, _headers, _text = _exchange(app, "GET", "/nope")
     assert status == 404
+
+
+# --------------------------------------------------------------------------------------
+# The 3D live view, served by the same process and writing to nothing
+# --------------------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_the_live_view_is_served_even_with_no_feeds_configured(app):
+    status, headers, payload = _exchange(app, "GET", "/api/feeds")
+    assert status == 200
+    assert headers["content-type"].startswith("application/json")
+    state = json.loads(payload)
+    assert state["feeds"] == []
+    assert "no keyless public WebSocket" in state["indian_equity_note"]
+    assert "display-only" in state["disclaimer"]
+
+    status, headers, page = _exchange(app, "GET", "/feeds")
+    assert status == 200
+    assert headers["content-type"].startswith("text/html")
+    assert "Markets in motion" in page
+    assert 'id="stage-canvas"' in page
+    assert "No feeds configured" in page
+
+
+@pytest.mark.unit
+def test_the_live_view_never_writes_to_the_research_store(app):
+    streams = ("hypothesis", "experiment", "paper", "risk_event", "autopsy")
+    before = {name: len(app.store.read(name)) for name in streams}
+    _exchange(app, "GET", "/feeds")
+    _exchange(app, "GET", "/api/feeds")
+    after = {name: len(app.store.read(name)) for name in before}
+    assert before == after
+
+
+@pytest.mark.unit
+def test_a_replay_hub_reaches_the_api_and_is_labelled_simulated(app):
+    from tradingagents.research.feeds import FeedHub, parse_feed_specs
+
+    replay = [{"open": 10 + index, "high": 11 + index, "low": 9 + index,
+               "close": 10.5 + index, "volume": 1.0} for index in range(12)]
+    hub = FeedHub.from_specs(parse_feed_specs(["replay:SYNTH"]),
+                             replay_bars={"SYNTH": replay}, per_second=400)
+    live_app = DashboardApp(app.store, ticker="SYNTH", timeframe="1d", feeds=hub)
+    hub.start()
+    try:
+        status, _headers, payload = _exchange(live_app, "GET", "/api/feeds")
+        assert status == 200
+        state = json.loads(payload)
+        feed = state["feeds"][0]
+        assert feed["quality"] == "simulated"
+        assert feed["provider"] == "replay"
+        assert "simulated" in feed["note"]
+        assert feed["series"]["candles"] >= 1
+        assert feed["candles"][0]["close"] >= 10
+    finally:
+        hub.stop()
+
+    _status, _headers, page = _exchange(live_app, "GET", "/feeds")
+    assert "simulated" in page
+    # Building the live page did not touch the paper record either.
+    assert paper_history(app.store, "V01") == []

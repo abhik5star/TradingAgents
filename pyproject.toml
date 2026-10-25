@@ -54,6 +54,8 @@ include = ["tradingagents*", "cli*"]
 [tool.setuptools.package-data]
 cli = ["static/*"]
 tradingagents = ["assets/*.svg"]
+# The 3D market view ships its hand-written WebGL as files, not as a CDN reference.
+"tradingagents.research" = ["assets/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

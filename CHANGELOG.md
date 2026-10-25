@@ -46,6 +46,19 @@ acceptance gates and refuses to promote the ones that do not clear them.
   same snapshot as the report and adds exactly one action: run a paper session. Approve,
   promote, roll back, risk-policy changes and live trading remain CLI-only, and every POST
   needs the page's form token. Standard library only; no new dependency.
+- **Free real-time feeds and a 3D market view.** `research serve --feed binance:BTCUSDT`
+  streams keyless public WebSockets (Binance, Coinbase, Kraken) into a hand-written WebGL
+  scene at `/feeds`: orbit, zoom, a per-symbol legend, a live tape table and server-rendered
+  sparklines. A standard-library WebSocket client does the framing (masking, continuation
+  frames, ping/pong), so no dependency was added and every frame is exercised against a real
+  socket in the tests. The renderer is inline and CDN-free because the page has no network at
+  runtime; with WebGL or JavaScript off, the table carries the same numbers.
+- **An honest answer for Indian equities.** There is no keyless public NSE/BSE WebSocket, so
+  `research feeds` prints what each route actually costs (Kite, Upstox and Angel One all need
+  your own API key from a funded account; Kite's is paid), `poll:<SYMBOL>` shows delayed
+  quotes and `generic:<SYMBOL> --feed-url … --feed-subscribe …` attaches a broker stream. Every
+  row, card and API response is labelled `live`, `delayed`, `simulated` or `unavailable`, and an
+  unreachable endpoint reports its error rather than a stale price.
 
 ### Notes
 
@@ -54,6 +67,10 @@ acceptance gates and refuses to promote the ones that do not clear them.
   beside the run logs rather than inside them.
 - The research engine has no broker integration. It reports what a rule set would have done and
   is designed to reject far more ideas than it accepts.
+- Live quotes are display-only. A tick stream never feeds a backtest, a paper verdict or a
+  research record: those still run on loaded bars, so watching a chart cannot change what the
+  engine believes. `replay:` feeds exist for demos and tests and are labelled `simulated`
+  everywhere they appear.
 
 ## [0.7.0] — 2026-10-16
 

@@ -41,9 +41,11 @@ existing command, agent, prompt, data vendor path or report style was replaced.
 | | `ml.py` | NumPy logistic regression, k-means, out-of-fold evaluation, calibration, drift, model registry |
 | | `hypothesis.py` | The loop: observe → diagnose → hypothesise → test → validate → decide → record |
 | `paper.py` | Forward paper trading: sessions, history, verdicts |
-| `server.py` | The browser dashboard (snapshot + paper-trade form, no other actions) |
+| `feeds.py` | Free-feed registry, standard-library WebSocket client, message parsers, candle builder, feed hub |
+| `livepage.py` + `assets/*.js` | The 3D market view: server-rendered HTML plus hand-written WebGL (scene math, renderer, page controller) |
+| `server.py` | The browser dashboard (snapshot + paper-trade form, no other actions) and the live view routes |
 | Delivery | `dashboard.py` | Snapshot, Rich console view, HTML section, standalone page |
-| | `cli/research.py` | `init, observe, run, status, versions, show, compare, promote, rollback, approve, live, risk, paper, serve, dashboard, hypotheses, holdouts, ml-train, ml-status, ml-promote` |
+| | `cli/research.py` | `init, observe, run, status, versions, show, compare, promote, rollback, approve, live, risk, paper, serve, feeds, dashboard, hypotheses, holdouts, ml-train, ml-status, ml-promote` |
 
 Integration points touched in existing files:
 
@@ -88,11 +90,11 @@ outcome, not an error, and it always carries its measured reason.
 
 ```
 $ .venv/bin/python -m pytest -q
-1575 passed, 1 skipped, 1 deselected, 100 subtests passed    (58.8 s)
+1640 passed, 1 skipped, 1 deselected, 100 subtests passed    (60.1 s)
 ```
 
-Baseline before this work was `1361 passed, 1 skipped`. The addition is **194 tests** in 14
-new modules:
+Baseline before this work was `1361 passed, 1 skipped`. The addition is **279 tests** across
+17 new modules:
 
 | Test module | Covers |
 | --- | --- |
@@ -111,7 +113,9 @@ new modules:
 | `test_research_dashboard.py` (8) | snapshot honesty, console panels, HTML escaping, report integration |
 | `test_research_guardrails.py` (5) | the whole feature table and the backtest decisions are unchanged when the future is truncated |
 | `test_research_paper.py` (11) | forward windows, pending vs failed, append-only sessions, status transitions, cost share, dashboard wiring |
-| `test_research_server.py` (7) | page rendering, form token, redirect message, JSON snapshot, escaping, refused sessions |
+| `test_research_server.py` (10) | page rendering, form token, redirect message, JSON snapshot, escaping, refused sessions, `/feeds` and `/api/feeds`, no store writes |
+| `test_research_feeds.py` (43) | WebSocket handshake/masking/fragmentation/ping/close over a socket pair, provider parsers, candle rolling, replay determinism, poll labels, hub snapshot, CLI feed builder |
+| `test_research_livepage.py` (19) | page carries the numbers without JS, no external references, boot payload escaping, sparklines, Node syntax + geometry + a full stub-GL render |
 
 ```
 $ .venv/bin/ruff check .
@@ -205,6 +209,83 @@ expectancy +0.678R, net +4,811.51, max DD 1.6%` — recorded, shown in the dashb
 *not* approvable, because the promotion review found earlier stages empty. That is the
 intended shape of the answer.
 
+## 3c. Free feeds and the 3D market view
+
+The last piece answers a different question from the rest of the engine: *what is the market
+doing right now, and can I see it without lying to myself about where the numbers come from?*
+
+| Piece | What it does |
+| --- | --- |
+| `feeds.PROVIDERS` | The registry of routes: `binance`, `coinbase`, `kraken` (keyless public WebSockets), `generic` (a broker endpoint you supply), `poll` (delayed quotes from the data layer), `replay` (simulated) |
+| `feeds.WebSocket` | RFC 6455 client in the standard library: handshake and accept-key check, masking, continuation frames, ping/pong, close |
+| `feeds.BarSeries` | Ticks → minute candles, plus the candle being formed, change, volume and tick count |
+| `feeds.FeedHub` | One thread per feed, one lock, one `state()` snapshot for the API |
+| `livepage.render_live_page` | The server-rendered page: legend, KPI cards, tape table, sparklines, provider and broker tables, boot payload |
+| `assets/scene-math.js` | Column-major matrices, orbit camera, box geometry for candles — DOM-free, so the tests run it under Node |
+| `assets/scene.js` | WebGL 1 renderer: two shader programs (solid candles with a directional light and depth fog, blended grid lines), pointer orbit, wheel zoom |
+| `assets/boot.js` | Polls `/api/feeds`, rebuilds geometry only when a candle actually changed, floats price tags over the newest candle by projecting them with the scene's own camera, drives the legend and the table, and survives a failed poll |
+
+**What is actually free.** Crypto is genuinely free and keyless: Binance `stream.binance.com`,
+Coinbase `ws-feed.exchange.coinbase.com` and Kraken `ws.kraken.com/v2` all publish documented
+public streams with no account, no key and sub-second latency. Indian equities are not: NSE and
+BSE license their real-time data through brokers. Zerodha Kite (binary ticker), Upstox
+(protobuf market feed) and Angel One SmartStream all require an API key from your own funded
+account, and Kite Connect is a paid plan. There is no keyless NSE WebSocket, and any page
+claiming otherwise is either delayed or unofficial. `research feeds` prints this as a table so
+the answer to "is there a free Indian real-time feed?" is something you can point at, and the
+dashboard offers the two honest routes: `generic:` with your broker's endpoint and key, or
+`poll:` with delayed quotes labelled *delayed* on every panel.
+
+**Why the scene is hand-written.** The page is served by a local process whose only job is to
+show you your own evidence; it must work with the network switched off, which rules out Three.js
+from a CDN and every icon font. So the renderer is ~250 lines of WebGL in the package
+(`assets/*.js`, shipped as package data), the shaders are inline, and the geometry is built by a
+DOM-free module that the test suite executes under Node. The tests there are not smoke tests:
+one renders a frame against a stub GL context and asserts two draws (grid lines, then triangles),
+that the triangle count equals the geometry's vertex count, and that every uploaded matrix is a
+finite 4×4.
+
+**What the scene shows.** Each symbol is a track along Z; each candle is a lit box with a
+wick column and a faint tick on the floor, so a high/low range reads as depth rather than as a
+line. The camera orbits a centred target, the geometry is re-centred on the origin when the
+symbol count or candle count changes, and the fit is computed from the widest track
+(`radius = width * 0.8 + 1.8`, clamped) so three symbols and one symbol both frame sensibly. A
+`projectPoint` call turns world coordinates into CSS pixels, which is what keeps a live price
+tag pinned to the newest close while the camera moves.
+
+**Degradation, in order.** No JavaScript → the server-rendered table, cards and sparklines are
+already in the HTML. No WebGL → the stage shows an explanation over the table. No feed →
+"no feeds configured" rather than an empty chart. Unreachable endpoint → the row says
+`unavailable` with the error. Simulation → `simulated` in the legend, the card, the table and
+the API.
+
+**A connected feed that says nothing useful.** A broker feed that accepts the socket, exchanges
+heartbeats and never sends a field this parser recognises would otherwise sit there as a flat
+line. After twenty messages without a tick the feed records
+`20 messages arrived but none carried a recognisable price; check the subscribe payload and the
+field names this provider uses`, and retracts it the moment a price arrives. That message
+survives a disconnect, because losing the connection should not erase the reason the feed was
+already useless.
+
+**One protocol limit, stated rather than hidden.** `generic` reads JSON text frames — Angel
+One's SmartStream JSON, or any broker that publishes `last_price`/`last_traded_quantity`.
+Zerodha's Kite ticker and Upstox v3 send binary protobuf, which this parser cannot read; they
+need a decoder before they can be attached. The provider table says so, and the silent-feed
+warning above is what you would see if you tried.
+
+Observed in this sandbox, which blocks outbound WebSocket and TLS to exchanges (verified by
+handshake failure to both Binance and Coinbase before writing the code): three `replay:` tracks
+rendered and ticked at 8 bars/s with `simulated` on every label, and `poll:RELIANCE.NS` reported
+`VendorUnavailableError: Yahoo Finance request failed: SSLError` in its row — exactly the honest
+answer. The `binance:`/`coinbase:` paths are exercised in the suite against a socket pair and a
+stub transport, not against the live venue, so their first real run will be on a machine with
+egress.
+
+**The one rule that did not change.** A live tape is display-only. `run_paper_session` and
+`run_backtest` read loaded bars; nothing in `feeds.py` can reach the store, and
+`test_the_live_view_never_writes_to_the_research_store` asserts the streams are untouched after
+a page load. Watching a chart cannot change what the engine believes.
+
 ## 4. Known limitations (read these before trusting a number)
 
 1. **No live trading, no broker, no execution.** There is no venue in this repository. The
@@ -231,6 +312,17 @@ intended shape of the answer.
    no portfolio construction here, and the existing `tradingagents/portfolio.py` is untouched.
 10. **Results are about the past.** Every gate is evidence about a historical sample; none of
     it is a forecast, and the `NO TRADE` message says so.
+11. **The crypto feeds are unverified against the live venues here.** This sandbox's egress proxy
+    closes the TLS handshake to both Binance and Coinbase, so the WebSocket code is proven
+    against a real socket pair and stub transports, not against the exchanges. The endpoints,
+    subscribe payloads and message shapes follow the published docs, and every feed reports its
+    own failure loudly rather than guessing.
+12. **No free Indian real-time feed exists.** Delayed polling is the keyless option and it is
+    labelled delayed everywhere; a broker stream needs your credentials and is *your* feed, with
+    your broker's terms attached. Tick data is not persisted — replaying it into a backtest
+    would be a deliberate act of your own.
+13. **Candles are one-minute and in-memory only.** The tape is a rolling window (240 candles per
+    feed); restarting the process loses it. Nothing here builds history.
 
 ---
 
@@ -253,6 +345,12 @@ python -m cli.main research hypotheses        # every attempt, with the gate tha
 python -m cli.main research versions          # V01.., status, stage, champion
 python -m cli.main research risk              # current policy; only tightening is accepted
 
+# 4b. Look at the market (display only; never an input to the steps above)
+python -m cli.main research feeds                       # what is free, and what India requires
+python -m cli.main research serve --feed binance:BTCUSDT --feed coinbase:BTC-USD
+python -m cli.main research serve --feed replay:SYNTH --replay-csv SYNTH=bars.csv
+#    then open http://localhost:32909/feeds for the 3D view
+
 # 5. Only after paper testing and a user decision
 python -m cli.main research approve V02 --approver you
 python -m cli.main research live --enable V02  # requires the typed confirmation
@@ -271,9 +369,12 @@ Added:
 ```
 tradingagents/research/{__init__,contracts,store,data,indicators,smc,patterns,orderflow,
                         regimes,features,strategies,quant,engine,risk,validation,scoring,
-                        autopsy,versions,ml,hypothesis,pipeline,dashboard}.py
+                        autopsy,versions,ml,hypothesis,pipeline,dashboard,paper,server,
+                        feeds,livepage}.py
+tradingagents/research/assets/{scene-math,scene,boot}.js
 cli/research.py
-tests/{research_fixtures,test_research_paper,test_research_server,test_research_data,test_research_features,test_research_engine,
+tests/{research_fixtures,test_research_paper,test_research_server,test_research_feeds,
+       test_research_livepage,test_research_data,test_research_features,test_research_engine,
        test_research_risk,test_research_store,test_research_validation,test_research_scoring,
        test_research_autopsy,test_research_versions,test_research_deployment,
        test_research_ml,test_research_hypothesis,test_research_dashboard,

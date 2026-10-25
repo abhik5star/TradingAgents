@@ -437,6 +437,43 @@ on its own (`tradingagents research dashboard --html out.html`) using the report
 theme. Design, audit and limitations: [`docs/research_engine_plan.md`](docs/research_engine_plan.md)
 and [`docs/research_engine_report.md`](docs/research_engine_report.md).
 
+### Live quotes: free for crypto, gated for India
+
+The same dashboard serves a 3D market view at `/feeds`. It is display-only: nothing on that
+page reaches a backtest, a paper verdict or a research record.
+
+```bash
+tradingagents research feeds                        # which free quotes exist, and what they cost
+tradingagents research serve --feed binance:BTCUSDT --feed coinbase:BTC-USD
+tradingagents research serve --feed poll:RELIANCE.NS --feed poll:^NSEI
+tradingagents research serve --feed replay:SYNTH --replay-csv SYNTH=bars.csv   # offline demo
+```
+
+| provider   | kind      | what you get                          | cost                             |
+|------------|-----------|---------------------------------------|----------------------------------|
+| `binance`  | WebSocket | real-time trade prints                | free, keyless, no account        |
+| `coinbase` | WebSocket | real-time match feed                  | free, keyless, no account        |
+| `kraken`   | WebSocket | real-time trade prints (v2 API)       | free, keyless, no account        |
+| `poll`     | polling   | delayed quotes (~15 min for NSE)      | free, keyless                    |
+| `generic`  | WebSocket | your broker's stream (Kite, Upstox…)  | your own API key and account     |
+| `replay`   | simulated | historical bars on a compressed clock | free, offline — never a market observation |
+
+**There is no keyless public WebSocket for NSE or BSE.** Indian real-time quotes are licensed
+through brokers — Zerodha Kite, Upstox and Angel One all require an API key from your own funded
+account, and Kite's is a paid add-on. So the honest routes are `generic:` with your broker's
+endpoint and key, or `poll:` with delayed quotes. The dashboard labels every row `live`,
+`delayed`, `simulated` or `unavailable`; an endpoint the network cannot reach is reported as
+unavailable rather than quietly showing a stale number.
+
+The view is hand-written WebGL in three small files (no CDN, no Three.js — the page has no
+network access at runtime): one track of lit candles per symbol, a price tag projected onto the
+newest close, orbit/zoom/pause, a per-symbol legend, a live tape table and server-rendered
+sparklines. With JavaScript or WebGL off, the table carries every number; with nothing
+configured, the page says so instead of drawing an empty stage. A `generic` feed reads JSON
+frames; binary broker protocols (Kite's ticker, Upstox v3 protobuf) need a decoder first, and a
+feed that receives messages without a recognisable price says exactly that instead of showing a
+flat line.
+
 ## Reproducibility
 
 TradingAgents is LLM-driven, so two runs of the same ticker and date can differ. This is expected for a research tool built on language models, not a defect. The variation comes from a few distinct sources, and it helps to separate them.

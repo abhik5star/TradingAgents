@@ -779,6 +779,47 @@ def dashboard(
         console.print(f"Written: {write_dashboard_html(snapshot, html)}")
 
 
+def _feed_hub(feed: list[str] | None, feed_url: list[str] | None,
+              feed_subscribe: list[str] | None, replay_csv: list[str] | None):
+    """Build a feed hub from command-line options, or ``None`` when nothing was asked.
+
+    Feed construction is where the honesty rules live, so every failure mode is a
+    message rather than an empty chart: an unknown provider, a generic feed with no
+    endpoint, or a replay feed with no bars are all refused here.
+    """
+    from tradingagents.research.feeds import (
+        FeedHub,
+        attach_endpoints,
+        parse_feed_specs,
+        replay_bars_for,
+    )
+    from tradingagents.research.server import yahoo_price_fetcher
+
+    if not feed:
+        if feed_url or feed_subscribe or replay_csv:
+            _fail("--feed-url/--feed-subscribe/--replay-csv need a --feed to describe")
+        return None
+    try:
+        specs = attach_endpoints(parse_feed_specs(feed), feed_url, feed_subscribe)
+    except ValueError as exc:
+        _fail(str(exc))
+        return None
+    replay_files: dict[str, str] = {}
+    for item in replay_csv or []:
+        symbol, _, path = str(item).partition("=")
+        if not path:
+            _fail(f"--replay-csv expects SYMBOL=PATH, got {item!r}")
+            return None
+        replay_files[symbol.strip()] = path.strip()
+    try:
+        replay_symbols = [spec.symbol for spec in specs if spec.provider == "replay"]
+        bars = replay_bars_for(replay_symbols, replay_files) if replay_symbols else {}
+        return FeedHub.from_specs(specs, replay_bars=bars, fetcher=yahoo_price_fetcher)
+    except (ValueError, OSError) as exc:
+        _fail(f"cannot build the feeds: {exc}")
+        return None
+
+
 @research_app.command("serve")
 def serve(
     port: int = typer.Option(32909, "--port", help="Port to bind"),
@@ -792,19 +833,39 @@ def serve(
     end: str = typer.Option(None, "--end", help="Data window end (default: the version's)"),
     asset_type: str = typer.Option("stock", "--asset-type"),
     research_dir: str = typer.Option(None, "--research-dir"),
+    feed: Annotated[list[str] | None, typer.Option(
+        "--feed",
+        help="A live feed, repeatable: binance:BTCUSDT, coinbase:BTC-USD, kraken:BTC/USD, "
+             "poll:RELIANCE.NS, generic:RELIANCE (needs --feed-url), replay:SYNTH "
+             "(needs --replay-csv)")] = None,
+    feed_url: Annotated[list[str] | None, typer.Option(
+        "--feed-url",
+        help="WebSocket endpoint for each generic (broker) feed, in order")] = None,
+    feed_subscribe: Annotated[list[str] | None, typer.Option(
+        "--feed-subscribe",
+        help="Subscribe message for each generic (broker) feed, in order")] = None,
+    replay_csv: Annotated[list[str] | None, typer.Option(
+        "--replay-csv",
+        help="SYMBOL=PATH bars for a replay feed; replayed ticks are labelled "
+             "simulated")] = None,
 ) -> None:
     """Serve the dashboard in a browser, with a form that runs a paper session.
 
     Everything else — approve, promote, rollback, the risk policy, live trading — stays
     on the command line. The page runs the same snapshot as the report and can only
     start a forward paper trade, which risks no capital.
+
+    ``--feed`` adds the 3D live market view at ``/feeds``. Crypto streams are free and
+    keyless; Indian equities have no keyless WebSocket, so use ``generic:`` with your
+    broker's endpoint or ``poll:`` for delayed quotes. Every row says which it is.
     """
     from tradingagents.research.server import DashboardApp, serve as bind
 
+    hub = _feed_hub(feed, feed_url, feed_subscribe, replay_csv)
     store = _store(research_dir)
     app = DashboardApp(store, csv_dir=csv_dir, ticker=ticker, timeframe=timeframe,
                        context=context, confirm=confirm, asset_type=asset_type,
-                       start=start, end=end,
+                       start=start, end=end, feeds=hub,
                        initial_equity=float(DEFAULT_CONFIG.get("research_initial_equity",
                                                               100_000.0)),
                        costs=CostModel(**_COSTS))
@@ -812,11 +873,22 @@ def serve(
     console.print(f"[bold]Strategy Intelligence dashboard[/bold] on http://{host}:{port}")
     console.print(f"memory: {store.root} · champion: "
                   f"{champion.version if champion else 'none'} · live trading: disabled")
+    if hub is not None and hub.symbols():
+        hub.start()
+        described = ", ".join(f"{spec.symbol} ({spec.provider})" for spec in hub.specs())
+        console.print(f"[bold]3D live view[/bold] at http://{host}:{port}/feeds · {described}")
+        console.print("[dim]Display only: a live tape never reaches a backtest, a paper "
+                      "verdict or a research record.[/dim]")
+    else:
+        console.print("[dim]No --feed given, so /feeds will explain that nothing is "
+                      "streaming.[/dim]")
     console.print("[dim]Paper trading only: the page cannot approve, promote or enable "
                   "anything.[/dim]")
     try:
         server = bind(app, host=host, port=port)
     except OSError as exc:
+        if hub is not None:
+            hub.stop()
         _fail(f"cannot bind {host}:{port}: {exc}")
         return
     try:
@@ -825,6 +897,42 @@ def serve(
         console.print("\nStopped.")
     finally:
         server.server_close()
+        if hub is not None:
+            hub.stop()
+
+
+@research_app.command("feeds")
+def feeds_command() -> None:
+    """Which free quotes exist, and what Indian equities actually require.
+
+    A table rather than a paragraph, because "is there a free NSE WebSocket?" deserves
+    an answer you can point at. Nothing here connects to anything.
+    """
+    from tradingagents.research.feeds import INDIAN_BROKERS, INDIAN_EQUITY_NOTE, PROVIDERS
+
+    table = Table(box=None, header_style="bold", title="free feeds")
+    for column in ("provider", "kind", "what you get", "cost"):
+        table.add_column(column)
+    for name, provider in PROVIDERS.items():
+        table.add_row(name, provider.kind, provider.quality, provider.cost)
+    console.print(table)
+
+    brokers = Table(box=None, header_style="bold", title="Indian equities: broker streams")
+    for column in ("broker", "protocol", "needs", "free?"):
+        brokers.add_column(column)
+    for entry in INDIAN_BROKERS.values():
+        brokers.add_row(entry["broker"], entry["protocol"], entry["needs"],
+                        entry["india_free"])
+    console.print(brokers)
+    console.print(f"[yellow]{INDIAN_EQUITY_NOTE.replace('`', '')}[/yellow]")
+    console.print("[bold]Wire one into the dashboard:[/bold]")
+    console.print("  research serve --feed binance:BTCUSDT --feed coinbase:BTC-USD")
+    console.print("  research serve --feed poll:RELIANCE.NS --feed poll:^NSEI")
+    console.print("  research serve --feed generic:RELIANCE --feed-url wss://ws.kite.trade "
+                  "--feed-subscribe '<your subscribe payload>'")
+    console.print("  research serve --feed replay:SYNTH --replay-csv SYNTH=bars.csv")
+    console.print("[dim]The 3D view is at /feeds. Display only: a live tape never reaches "
+                  "a backtest or a paper verdict.[/dim]")
 
 
 @research_app.command("hypotheses")
