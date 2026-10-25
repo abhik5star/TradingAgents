@@ -36,6 +36,17 @@ acceptance gates and refuses to promote the ones that do not clear them.
 - **Yahoo `load_ohlcv_window`** in the data layer, so a backtest asks for an explicit window and
   bar size and the vendor call stays where caching, retries and vendor errors already live.
 
+- **Paper trading as a step of its own.** `tradingagents research paper [VERSION]` trades a
+  version forward over bars after its out-of-sample window, costs included, and records the
+  window, the trades and the verdict; `--history` lists every session. Sessions are
+  append-only, a window that is too short reports `pending` instead of a zero-trade failure,
+  and the record says whether the start came from the version's recorded split or was
+  declared by a person.
+- **A browser dashboard.** `tradingagents research serve` (default port 32909) renders the
+  same snapshot as the report and adds exactly one action: run a paper session. Approve,
+  promote, roll back, risk-policy changes and live trading remain CLI-only, and every POST
+  needs the page's form token. Standard library only; no new dependency.
+
 ### Notes
 
 - No existing command, agent, prompt, data vendor path or report style changes. The research

@@ -26,7 +26,7 @@ from rich.table import Table
 
 from cli.display import console
 from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.research.contracts import ExperimentStatus, Timeframe
+from tradingagents.research.contracts import CostModel, ExperimentStatus, Timeframe
 from tradingagents.research.dashboard import publish_snapshot, render_console, write_dashboard_html
 from tradingagents.research.data import CsvDataSource, MarketData, YahooDataSource, load_market_data
 from tradingagents.research.engine import EngineConfig, run_backtest
@@ -39,6 +39,7 @@ from tradingagents.research.ml import (
     ml_adds_value,
     train_with_oof,
 )
+from tradingagents.research.paper import paper_history, run_paper_session
 from tradingagents.research.pipeline import PromotionPipeline
 from tradingagents.research.risk import RiskEngine, RiskPolicy, load_policy, save_policy
 from tradingagents.research.scoring import NO_TRADE
@@ -637,6 +638,129 @@ def risk_command(
 
 
 # --------------------------------------------------------------------------------------
+# paper trading
+# --------------------------------------------------------------------------------------
+
+
+@research_app.command("paper")
+def paper(
+    version: str = typer.Argument(None, help="Version to paper trade; defaults to the champion"),
+    start: str = typer.Option(None, "--start",
+                              help="First forward bar; defaults to the out-of-sample end"),
+    end: str = typer.Option(None, "--end", help="Last bar to evaluate; defaults to the newest"),
+    timeframe: str = typer.Option("1d", "--timeframe"),
+    context: str = typer.Option(None, "--context"),
+    confirm: str = typer.Option(None, "--confirm"),
+    csv_dir: str = typer.Option(None, "--csv"),
+    asset_type: str = typer.Option("stock", "--asset-type"),
+    min_trades: int = typer.Option(5, "--min-trades", help="Forward trades needed to pass"),
+    min_bars: int = typer.Option(30, "--min-bars", help="Forward bars needed to start"),
+    history: bool = typer.Option(False, "--history", help="Show recorded sessions and stop"),
+    research_dir: str = typer.Option(None, "--research-dir"),
+    html: str = typer.Option(None, "--html", help="Write the dashboard page to this path"),
+) -> None:
+    """Trade a version forward on bars it was not selected on, and record the result.
+
+    Paper trading here is a forward simulation over data that arrived after the
+    version's out-of-sample window. It places no orders, needs no broker and never
+    enables live trading: a passing session makes the version eligible for the
+    approval conversation, and nothing more.
+    """
+    store = _store(research_dir)
+    registry = StrategyRegistry(store)
+
+    if history:
+        sessions = paper_history(store, version, limit=20)
+        if not sessions:
+            target = version or "<version>"
+            console.print(f"[yellow]No paper sessions recorded yet. Run "
+                          f"`research paper {target}`.[/yellow]")
+            return
+        table = Table(title="Paper sessions", box=None, header_style="bold")
+        for column in ("session", "version", "window", "bars", "trades", "expectancy",
+                       "net", "max DD", "verdict"):
+            table.add_column(column)
+        for session in sessions:
+            expectancy = session.get("expectancy_r")
+            table.add_row(
+                str(session.get("paper_id", ""))[-12:], str(session.get("version", "")),
+                f"{session.get('started', '')}..{session.get('ended', '')}",
+                str(session.get("bars", 0)), str(session.get("trades", 0)),
+                f"{expectancy:+.3f}R" if isinstance(expectancy, (int, float)) else "—",
+                f"{session.get('net_pnl', 0):+,.2f}",
+                f"{(session.get('max_drawdown_pct') or 0):.1%}",
+                str(session.get("status", "")))
+        console.print(table)
+        console.print("[dim]Sessions are append-only: a later run adds a new one and the "
+                      "version keeps the latest as its paper record.[/dim]")
+        return
+
+    if version:
+        record = registry.get(version)
+    else:
+        champion = registry.champion_version()
+        if champion is None:
+            _fail("no version to paper trade; run `research init` and `research run` first")
+            return
+        record = champion
+    if record.status in (ExperimentStatus.REJECTED.value, ExperimentStatus.ROLLED_BACK.value):
+        _fail(f"{record.version} is {record.status}; only a live candidate can be paper traded")
+        return
+
+    dataset = record.dataset or {}
+    window_start = start or str(dataset.get("first", ""))[:10]
+    window_end = end or str(dataset.get("last", ""))[:10]
+    if not window_start or not window_end:
+        _fail("this version did not record the data window it was tested on; pass "
+              "--start and --end explicitly")
+        return
+
+    ticker = dataset.get("ticker")
+    if not ticker:
+        _fail("this version did not record which instrument it was tested on; register the "
+              "dataset or re-run the research session")
+        return
+    table, _data = _load_table(ticker, timeframe, context, confirm, window_start, window_end,
+                               csv_dir, asset_type)
+    policy, _risk = _runtime(store)
+    config = EngineConfig(initial_equity=DEFAULT_CONFIG.get("research_initial_equity", 100_000.0),
+                          costs=CostModel(**_COSTS), risk_policy=policy)
+    try:
+        session = run_paper_session(registry, store, record.version, table, config,
+                                    start=start, min_trades=min_trades, min_bars=min_bars)
+    except ValueError as exc:
+        _fail(str(exc))
+        return
+
+    snapshot = publish_snapshot(store, ticker=session.ticker)
+    console.print(f"[bold]{session.summary_line()}[/bold]")
+    console.print(f"[dim]{session.note}[/dim]")
+    if session.sample_trades:
+        trades = Table(title="Forward trades (first "
+                             f"{len(session.sample_trades)})", box=None, header_style="bold")
+        for column in ("entry", "exit", "side", "entry px", "exit px", "R", "net", "reason"):
+            trades.add_column(column)
+        for trade in session.sample_trades:
+            trades.add_row(str(trade["entry_time"])[:10], str(trade["exit_time"])[:10],
+                           str(trade["side"]), f"{trade['entry_price']:.2f}",
+                           f"{trade['exit_price']:.2f}", f"{trade['r_multiple']:+.2f}",
+                           f"{trade['net_pnl']:+,.2f}", str(trade["exit_reason"]))
+        console.print(trades)
+    if session.status == "passed":
+        console.print("[green]Paper testing passed on this window. Approval is still a human "
+                      "decision: `research approve "
+                      f"{session.version} --approver <name>`.[/green]")
+    elif session.status == "failed":
+        console.print("[yellow]Paper testing did not pass: the version stays unapproved.[/yellow]")
+    else:
+        console.print("[yellow]Not enough forward bars yet; re-run once more data has "
+                      "printed.[/yellow]")
+    console.print(f"Live trading: {'enabled' if registry.live_trading_enabled() else 'disabled'}.")
+    if html:
+        console.print(f"Written: {write_dashboard_html(snapshot, html)}")
+
+
+# --------------------------------------------------------------------------------------
 # dashboard page
 # --------------------------------------------------------------------------------------
 
@@ -653,6 +777,54 @@ def dashboard(
     render_console(snapshot, console)
     if html:
         console.print(f"Written: {write_dashboard_html(snapshot, html)}")
+
+
+@research_app.command("serve")
+def serve(
+    port: int = typer.Option(32909, "--port", help="Port to bind"),
+    host: str = typer.Option("0.0.0.0", "--host", help="Interface to bind"),
+    ticker: str = typer.Option(None, "--ticker", help="Instrument the data window is loaded for"),
+    timeframe: str = typer.Option("1d", "--timeframe"),
+    context: str = typer.Option(None, "--context"),
+    confirm: str = typer.Option(None, "--confirm"),
+    csv_dir: str = typer.Option(None, "--csv", help="Read bars from CSVs instead of Yahoo"),
+    start: str = typer.Option(None, "--start", help="Data window start (default: the version's)"),
+    end: str = typer.Option(None, "--end", help="Data window end (default: the version's)"),
+    asset_type: str = typer.Option("stock", "--asset-type"),
+    research_dir: str = typer.Option(None, "--research-dir"),
+) -> None:
+    """Serve the dashboard in a browser, with a form that runs a paper session.
+
+    Everything else — approve, promote, rollback, the risk policy, live trading — stays
+    on the command line. The page runs the same snapshot as the report and can only
+    start a forward paper trade, which risks no capital.
+    """
+    from tradingagents.research.server import DashboardApp, serve as bind
+
+    store = _store(research_dir)
+    app = DashboardApp(store, csv_dir=csv_dir, ticker=ticker, timeframe=timeframe,
+                       context=context, confirm=confirm, asset_type=asset_type,
+                       start=start, end=end,
+                       initial_equity=float(DEFAULT_CONFIG.get("research_initial_equity",
+                                                              100_000.0)),
+                       costs=CostModel(**_COSTS))
+    champion = StrategyRegistry(store).champion_version()
+    console.print(f"[bold]Strategy Intelligence dashboard[/bold] on http://{host}:{port}")
+    console.print(f"memory: {store.root} · champion: "
+                  f"{champion.version if champion else 'none'} · live trading: disabled")
+    console.print("[dim]Paper trading only: the page cannot approve, promote or enable "
+                  "anything.[/dim]")
+    try:
+        server = bind(app, host=host, port=port)
+    except OSError as exc:
+        _fail(f"cannot bind {host}:{port}: {exc}")
+        return
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        console.print("\nStopped.")
+    finally:
+        server.server_close()
 
 
 @research_app.command("hypotheses")

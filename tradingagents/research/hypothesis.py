@@ -590,23 +590,25 @@ class HypothesisLoop:
             summary.notes.append(summary.no_trade_reason)
             return summary
 
-        # The champion is the baseline; seed V01 on the first session.
+        split = chronological_split(table.bars.index, self.plan.train_fraction,
+                                    self.plan.validation_fraction, self.plan.purge_bars,
+                                    self.plan.embargo_bars)
+
+        # The champion is the baseline; seed V01 on the first session. It records the
+        # same split as every candidate, so the baseline can be paper traded forward
+        # from the end of its own out-of-sample window like any other version.
         champion = self.registry.champion_version()
         if champion is None:
             champion = self.registry.register(
                 baseline_strategy(table.timeframe, table.context_timeframe),
                 status=ExperimentStatus.PAPER_TESTING,
                 stage=DeploymentStage.AWAITING_APPROVAL,
-                dataset=table.summary(),
+                dataset={**table.summary(), "split": split.as_dict()},
                 provenance={"seeded_as_baseline": True})
             self.store.append("deployment", {"id": new_id("DEP"), "kind": "baseline_seeded",
                                              "version": champion.version})
         baseline_spec = champion.spec
         baseline_spec.validate_columns(table.features.columns)
-
-        split = chronological_split(table.bars.index, self.plan.train_fraction,
-                                    self.plan.validation_fraction, self.plan.purge_bars,
-                                    self.plan.embargo_bars)
         train_val = table.slice(str(split.train[0]), str(split.validation[1]))
         test_table = split.subset(table, "test")
 

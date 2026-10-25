@@ -397,6 +397,21 @@ tradingagents research status                      # the Strategy Intelligence d
 tradingagents research hypotheses                  # every attempt, with the gate that failed
 ```
 
+Paper trading is a first-class step, not a label for a backtest:
+
+```bash
+tradingagents research paper               # champion, forward from its out-of-sample end
+tradingagents research paper V03 --history # every recorded session, append-only
+tradingagents research serve               # browser dashboard with a paper-trade form
+```
+
+A paper session trades the version on bars *after* the out-of-sample window it was
+selected on, costs included, and records the window, the trades and the verdict. A session
+that cannot fill the window reports `pending` rather than a zero-trade "failure". Passing
+makes a version eligible for the approval conversation; it never approves anything, and the
+page cannot approve, promote, roll back or enable live trading — those stay on the command
+line because they need a deliberate human decision rather than a button.
+
 How it decides:
 
 - **Rules fill at the next bar's open**, never on the bar that produced the signal, and every

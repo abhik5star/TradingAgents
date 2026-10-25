@@ -39,6 +39,7 @@ STREAMS = {
     "autopsy": "autopsies.jsonl",
     "risk_event": "risk_events.jsonl",
     "deployment": "deployments.jsonl",
+    "paper": "paper_sessions.jsonl",
     "ml_event": "ml_events.jsonl",
     "error": "errors.jsonl",
 }

@@ -40,8 +40,10 @@ existing command, agent, prompt, data vendor path or report style was replaced.
 | | `pipeline.py` | Paper-first promotion stages and the approval gate |
 | | `ml.py` | NumPy logistic regression, k-means, out-of-fold evaluation, calibration, drift, model registry |
 | | `hypothesis.py` | The loop: observe → diagnose → hypothesise → test → validate → decide → record |
+| `paper.py` | Forward paper trading: sessions, history, verdicts |
+| `server.py` | The browser dashboard (snapshot + paper-trade form, no other actions) |
 | Delivery | `dashboard.py` | Snapshot, Rich console view, HTML section, standalone page |
-| | `cli/research.py` | `init, observe, run, status, versions, show, compare, promote, rollback, approve, live, risk, dashboard, hypotheses, holdouts, ml-train, ml-status, ml-promote` |
+| | `cli/research.py` | `init, observe, run, status, versions, show, compare, promote, rollback, approve, live, risk, paper, serve, dashboard, hypotheses, holdouts, ml-train, ml-status, ml-promote` |
 
 Integration points touched in existing files:
 
@@ -86,7 +88,7 @@ outcome, not an error, and it always carries its measured reason.
 
 ```
 $ .venv/bin/python -m pytest -q
-1555 passed, 1 skipped, 1 deselected, 100 subtests passed    (52.9 s)
+1575 passed, 1 skipped, 1 deselected, 100 subtests passed    (58.8 s)
 ```
 
 Baseline before this work was `1361 passed, 1 skipped`. The addition is **194 tests** in 14
@@ -108,6 +110,8 @@ new modules:
 | `test_research_hypothesis.py` (14) | full session, rejections with gates, no repeated experiment, LLM can only propose, data-quality stop |
 | `test_research_dashboard.py` (8) | snapshot honesty, console panels, HTML escaping, report integration |
 | `test_research_guardrails.py` (5) | the whole feature table and the backtest decisions are unchanged when the future is truncated |
+| `test_research_paper.py` (11) | forward windows, pending vs failed, append-only sessions, status transitions, cost share, dashboard wiring |
+| `test_research_server.py` (7) | page rendering, form token, redirect message, JSON snapshot, escaping, refused sessions |
 
 ```
 $ .venv/bin/ruff check .
@@ -165,6 +169,41 @@ producing a nice-looking equity curve.
   path at all — `test_layering.py` still passes.
 
 ---
+
+## 3b. Paper trading and the browser dashboard
+
+`tradingagents/research/paper.py` and `tradingagents/research/server.py` were added after the
+first round of this report, for the one question the engine could not answer: *what does the
+version do on bars that arrived after the decision?*
+
+| Piece | What it does |
+| --- | --- |
+| `paper.run_paper_session` | Trades a version forward from the end of its recorded out-of-sample window, costs and risk policy included, and appends a session record |
+| `paper.paper_history` / `latest_paper` | Read the append-only `paper_sessions.jsonl` stream |
+| `research paper` | CLI: run a session, `--history` to list them |
+| `research serve` | Browser dashboard (standard-library HTTP) with the snapshot and a paper-trade form |
+| Dashboard section | A "Paper trading" panel in the console view and two new rows in the HTML section |
+
+Properties enforced by `tests/test_research_paper.py` (11 tests) and
+`tests/test_research_server.py` (7 tests):
+
+* a session starts strictly **after** the version's out-of-sample window and says how many
+  forward bars it saw; a window with too few bars is `pending`, never a fake zero-trade result;
+* a session records `start_source`: `version_split` when it came from the recorded split,
+  `declared` when a person supplied the date — and the note says plainly that a declared window
+  overlapping the selection sample is not a forward test;
+* sessions are append-only and the version keeps the latest as its `paper` record, which is
+  exactly what `PromotionPipeline.review` reads before an approval can be requested;
+* a passing session moves the version into `Paper Testing`; a failing one leaves it unapproved;
+* the dashboard cannot approve, promote, roll back, change the risk policy or enable live
+  trading — there is no route for it — and a POST without the per-process form token is
+  refused (403). Everything from the store is HTML-escaped.
+
+Observed on the preview fixture (1700 synthetic daily bars, research window 2015-01-02 →
+2020-06-30, forward window 2020-07-01 → 2021-07-08): `V01 paper passed: 14 trades,
+expectancy +0.678R, net +4,811.51, max DD 1.6%` — recorded, shown in the dashboard, and still
+*not* approvable, because the promotion review found earlier stages empty. That is the
+intended shape of the answer.
 
 ## 4. Known limitations (read these before trusting a number)
 
@@ -234,7 +273,7 @@ tradingagents/research/{__init__,contracts,store,data,indicators,smc,patterns,or
                         regimes,features,strategies,quant,engine,risk,validation,scoring,
                         autopsy,versions,ml,hypothesis,pipeline,dashboard}.py
 cli/research.py
-tests/{research_fixtures,test_research_data,test_research_features,test_research_engine,
+tests/{research_fixtures,test_research_paper,test_research_server,test_research_data,test_research_features,test_research_engine,
        test_research_risk,test_research_store,test_research_validation,test_research_scoring,
        test_research_autopsy,test_research_versions,test_research_deployment,
        test_research_ml,test_research_hypothesis,test_research_dashboard,

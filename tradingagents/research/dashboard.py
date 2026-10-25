@@ -21,6 +21,7 @@ from html import escape
 from typing import Any
 
 from tradingagents.research.contracts import jsonable, utc_now
+from tradingagents.research.paper import paper_history
 from tradingagents.research.scoring import NO_TRADE
 from tradingagents.research.store import ResearchStore
 from tradingagents.research.versions import StrategyRegistry
@@ -101,7 +102,12 @@ def build_snapshot(store: ResearchStore, summary: Any | None = None,
 
     paper_candidates = [version for version in versions
                         if version.status == "Paper Testing" or version.paper]
+    paper_sessions = paper_history(store, ticker=ticker, limit=8)
     latest_paper = (paper_candidates[-1].paper if paper_candidates else {}) or {}
+    if paper_sessions and (not latest_paper
+                           or paper_sessions[-1].get("paper_id")
+                           != latest_paper.get("paper_id")):
+        latest_paper = paper_sessions[-1]
     approvals = list(store.load_registry().get("approvals") or [])
     drift_alerts = [event for event in ml_events if event.get("kind") == "drift_alert"]
     last_training = next((event for event in reversed(ml_events)
@@ -174,6 +180,13 @@ def build_snapshot(store: ResearchStore, summary: Any | None = None,
                           "started": latest_paper.get("started"),
                           "ended": latest_paper.get("ended"),
                           "note": latest_paper.get("note", "")},
+        "paper_sessions": [
+            {key: session.get(key) for key in
+             ("paper_id", "version", "ticker", "started", "ended", "bars",
+              "trades", "expectancy_r", "net_pnl", "max_drawdown_pct", "status", "note",
+              "created_at")}
+            for session in paper_sessions
+        ],
         "mistakes": weaknesses,
         "risk": {
             "blocks": len([event for event in risk_events
@@ -260,6 +273,20 @@ def render_console(snapshot: dict[str, Any], console: Any = None) -> None:
     research.add_row("last run", str(snapshot.get("last_run") or "never"))
     console.print(Panel(research, title="Research", border_style="cyan"))
 
+    sessions = snapshot.get("paper_sessions") or []
+    if sessions:
+        paper_table = Table(box=None, show_header=True, header_style="bold")
+        for column in ("session", "version", "window", "trades", "expectancy", "verdict"):
+            paper_table.add_column(column)
+        for session in sessions[-4:]:
+            paper_table.add_row(
+                str(session.get("paper_id", ""))[-11:], str(session.get("version", "")),
+                f"{session.get('started', '')}..{session.get('ended', '')}",
+                str(session.get("trades", 0)),
+                _format_metric(session.get("expectancy_r"), "R", 3),
+                str(session.get("status", "")))
+        console.print(Panel(paper_table, title="Paper trading", border_style="magenta"))
+
     oos = snapshot.get("out_of_sample") or {}
     performance = Table(box=None, show_header=True, header_style="bold")
     for column in ("sample", "trades", "expectancy", "profit factor", "max drawdown"):
@@ -330,6 +357,8 @@ def _table_rows(snapshot: dict[str, Any]) -> list[tuple[str, str]]:
             _metric(oos.get("candidate"), "expectancy_r"), "R", 3)),
         ("Paper testing", f"{paper.get('status', 'not started')} · "
                           f"{paper.get('trades', 0)} trades"),
+        ("Paper window", f"{paper.get('started', '—')}..{paper.get('ended', '—')}"),
+        ("Paper expectancy", _format_metric(paper.get("expectancy_r"), "R", 3)),
         ("Risk blocks", str((snapshot.get("risk") or {}).get("blocks", 0))),
         ("Model drift alerts", str(len(snapshot.get("drift_alerts") or []))),
         ("Last successful run", str(snapshot.get("last_run") or "never")),
