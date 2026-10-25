@@ -90,7 +90,7 @@ def _report_parts(final_state: dict) -> list[tuple[str, str, list[tuple[str, str
 
 
 def write_report_tree(final_state: dict, ticker: str, save_path, settings: dict | None = None,
-                      html: bool = True) -> Path:
+                      html: bool = True, research_section: str | None = None) -> Path:
     """Save a completed run's reports to ``save_path``; return the complete-report path.
 
     ``settings`` (``TradingAgentsGraph.run_settings()``) adds what produced the run
@@ -115,6 +115,7 @@ def write_report_tree(final_state: dict, ticker: str, save_path, settings: dict 
         from tradingagents.report_html import render_report
 
         (save_path / "complete_report.html").write_text(
-            render_report(ticker, final_state, settings, parts), encoding="utf-8"
+            render_report(ticker, final_state, settings, parts,
+                          research_section=research_section), encoding="utf-8"
         )
     return save_path / "complete_report.md"

@@ -381,6 +381,47 @@ tradingagents backtest NVDA,AAPL --start 2026-06-01 --end 2026-08-01 --every 7
 
 Each cell is scored on realized alpha against the instrument's regional benchmark, grouped by rating. A decision is entered at the first close after its date, because a run reads news published after that day's close. Your own memory log is never written to, and re-running the same grid with `run_id=result.run_id` skips the cells that already ran, so an interrupted sweep continues where it stopped.
 
+## Strategy Intelligence: hypothesis research with gates
+
+`run_backtest` scores decisions the agents already made. The `research` commands answer a
+different question: *can a declared rule set earn its costs, out of sample, after the toy
+stories are removed?* It is a separate engine — a cost-aware backtester, an independent risk
+policy, purged validation, immutable strategy versions and a paper-first promotion path — and
+it is meant to say no.
+
+```bash
+tradingagents research init                        # seed V01 and the research memory
+tradingagents research observe --ticker NVDA --start 2015-01-01 --end 2025-01-01
+tradingagents research run NVDA --start 2015-01-01 --end 2025-01-01 --hypotheses 3
+tradingagents research status                      # the Strategy Intelligence dashboard
+tradingagents research hypotheses                  # every attempt, with the gate that failed
+```
+
+How it decides:
+
+- **Rules fill at the next bar's open**, never on the bar that produced the signal, and every
+  feature is bounded by data that had already printed. A counterfactual test rebuilds the whole
+  feature table on truncated history and fails if any column moves.
+- **Costs are always charged** — commission, slippage, half the spread, sell-side tax, funding —
+  and a cost-stress run at higher friction must still be profitable for a candidate to pass.
+- **Minimum sample, out-of-sample expectancy, walk-forward consistency, parameter stability,
+  holdout budget and multiple-testing correction** are checked before a version can replace the
+  baseline. Failing them produces `NO TRADE` with the measured reason, not a quieter strategy.
+- **The risk engine is not advisory.** Strategies request a position size; a frozen policy caps
+  it at 1% risk, 1x leverage and one open position, and only ever shrinks it. Policy changes are
+  refused unless every field is equal or tighter. The LLM layer cannot touch it.
+- **Nothing goes live by default.** Promotion is backtest → out-of-sample → walk-forward →
+  robustness → paper trading → risk review → an explicit approval from a named user, and then a
+  typed version confirmation. A rollback withdraws live permission immediately. This engine has
+  no broker connection and no order path at all.
+- **Every hypothesis is recorded**, accepted or rejected, in an append-only log the dashboard
+  reads; a rejected experiment is not proposed again without new evidence.
+
+The dashboard appears as a Strategy Intelligence section in the HTML report and can be written
+on its own (`tradingagents research dashboard --html out.html`) using the report's existing
+theme. Design, audit and limitations: [`docs/research_engine_plan.md`](docs/research_engine_plan.md)
+and [`docs/research_engine_report.md`](docs/research_engine_report.md).
+
 ## Reproducibility
 
 TradingAgents is LLM-driven, so two runs of the same ticker and date can differ. This is expected for a research tool built on language models, not a defect. The variation comes from a few distinct sources, and it helps to separate them.

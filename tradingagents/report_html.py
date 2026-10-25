@@ -245,8 +245,15 @@ def _run_details(final_state: dict, settings: dict | None) -> list[tuple[str, st
     return details
 
 
-def render_report(ticker: str, final_state: dict, settings: dict | None, parts) -> str:
-    """The report page: title and rating, what produced the run, contents, sections."""
+def render_report(ticker: str, final_state: dict, settings: dict | None, parts,
+                  research_section: str | None = None) -> str:
+    """The report page: title and rating, what produced the run, contents, sections.
+
+    ``research_section`` is the optional Strategy Intelligence block rendered by
+    :func:`tradingagents.research.dashboard.render_section_html`. It is appended
+    as a section of the same page rather than a second page, so the report keeps
+    one theme and one place to read.
+    """
     md = _markdown()
     rating = run_rating(final_state) if final_state.get("final_trade_decision") else ""
     tone = _TONE.get(rating, "review")
@@ -274,6 +281,12 @@ def render_report(ticker: str, final_state: dict, settings: dict | None, parts) 
         for m, (agent, _filename, text) in enumerate(written, 1):
             body.append(f'<h3 id="s{n}-{m}">{escape(agent)}</h3>\n{_render_agent_text(md, text)}')
         body.append("</section>")
+
+    if research_section:
+        contents.append(
+            '<li><a href="#strategy-intelligence"><span class="num">SI</span> '
+            '<span class="label">Strategy Intelligence</span></a></li>')
+        body.append(research_section)
 
     page_title = " ".join(x for x in (ticker, date, rating) if x)
     return f"""<!doctype html>
