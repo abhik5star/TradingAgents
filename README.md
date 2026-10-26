@@ -389,6 +389,21 @@ stories are removed?* It is a separate engine — a cost-aware backtester, an in
 policy, purged validation, immutable strategy versions and a paper-first promotion path — and
 it is meant to say no.
 
+**See it work first, in one command.** No keys, no vendor account, no decision about which
+stock to study:
+
+```bash
+pip install -e .
+tradingagents research demo        # demo bars → a real run → a real paper session → browser
+```
+
+It generates four synthetic instruments into `~/.tradingagents/demo/`, runs the same
+`init`/`run`/`paper`/`serve` code you would run by hand, then opens
+<http://localhost:32909>. The bars are generated locally and every screen says so: a number
+from the demo describes the generator, not a market. Delete that directory to start again,
+or `--store-only` to build the memory and print the exact `research serve` command instead of
+serving. Real work is the same loop on real bars — drop `--csv` and name a ticker.
+
 ```bash
 tradingagents research init                        # seed V01 and the research memory
 tradingagents research observe --ticker NVDA --start 2015-01-01 --end 2025-01-01

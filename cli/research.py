@@ -901,6 +901,105 @@ def serve(
             hub.stop()
 
 
+@research_app.command("demo")
+def demo(
+    directory: str = typer.Option(None, "--dir",
+                                   help="Where the demo keeps its CSV and memory "
+                                        "(default ~/.tradingagents/demo)"),
+    port: int = typer.Option(32909, "--port", help="Dashboard port"),
+    host: str = typer.Option("0.0.0.0", "--host", help="Interface to bind"),
+    hypotheses: int = typer.Option(2, "--hypotheses"),
+    rebuild: bool = typer.Option(False, "--rebuild", help="Regenerate the demo bars"),
+    store_only: bool = typer.Option(False, "--store-only",
+                                    help="Build the demo memory and stop; do not serve"),
+) -> None:
+    """One command: demo bars, a real research run, a real paper session, the dashboard.
+
+    The shortest path to seeing the whole loop work on this machine. The bars are generated
+    locally and every screen says so — they describe the generator, not a market — and the
+    demo keeps its own directory, so it can never be mixed with real evidence.
+
+    Nothing here is a shortcut around the engine: it calls the very same commands you would
+    type by hand, with every option passed explicitly.
+    """
+    from tradingagents.research.demo import (
+        DEMO_DISCLAIMER,
+        DEMO_WINDOW,
+        demo_summary,
+        write_demo_csvs,
+    )
+
+    root = Path(directory).expanduser() if directory else Path.home() / ".tradingagents" / "demo"
+    csv_dir = root / "csv"
+    store_dir = root / "store"
+    research_dir = str(store_dir)
+    paths = write_demo_csvs(csv_dir, force=rebuild)
+
+    console.print(f"[bold]Demo workspace[/bold] {root}\n")
+    listing = Table(box=None, header_style="bold")
+    for column in ("symbol", "bars", "first close", "last close", "what it is for"):
+        listing.add_column(column)
+    for row in demo_summary(paths):
+        listing.add_row(row["symbol"], str(row["bars"]),
+                        "—" if row["first"] is None else f"{row['first']:,.2f}",
+                        "—" if row["last"] is None else f"{row['last']:,.2f}",
+                        row["role"])
+    console.print(listing)
+    console.print(f"[yellow]{DEMO_DISCLAIMER}[/yellow]\n")
+
+    store = _store(research_dir)
+    if StrategyRegistry(store).champion_version() is None:
+        console.print("[bold]1/2[/bold] hypothesis loop (this takes a few seconds)")
+        # Not `research init`: the loop seeds V01 itself, and it records the data window
+        # it was measured on, which is what makes V01 paper tradeable afterwards.
+        run(ticker="SYNTH", start=DEMO_WINDOW["start"], end=DEMO_WINDOW["research_end"],
+            timeframe="1d", context=None, confirm=None, csv_dir=str(csv_dir),
+            asset_type="stock", hypotheses=hypotheses,
+            commission_bps=_COSTS["commission_bps"], slippage_bps=_COSTS["slippage_bps"],
+            spread_bps=_COSTS["spread_bps"], tax_bps_sell=_COSTS["tax_bps_sell"],
+            funding_bps_per_day=_COSTS["funding_bps_per_day"],
+            min_trades=int(DEFAULT_CONFIG.get("research_min_trades", 40)),
+            research_dir=research_dir, html=None)
+    else:
+        console.print("[dim]1/2 demo memory already exists; reusing it "
+                      "(--rebuild regenerates the bars).[/dim]")
+
+    champion = StrategyRegistry(store).champion_version()
+    window = (champion.dataset or {}) if champion else {}
+    if paper_history(store):
+        console.print("\n[dim]2/2 a paper session is already recorded.[/dim]")
+    elif champion is not None and window.get("first"):
+        console.print("\n[bold]2/2[/bold] paper session on bars the version never saw")
+        paper(version=None, start=None, end=DEMO_WINDOW["paper_end"], timeframe="1d",
+              context=None, confirm=None, csv_dir=str(csv_dir), asset_type="stock",
+              min_trades=5, min_bars=30, history=False, research_dir=research_dir, html=None)
+    else:
+        console.print("\n[yellow]2/2 skipped: the champion has no recorded data window, so "
+                      "there is nothing to trade forward yet.[/yellow]")
+        console.print("[dim]Fresh demo memory gets one automatically. If this directory was "
+                      "initialised with `research init`, delete it or pass a different "
+                      "--dir.[/dim]")
+
+    replay_csv = [f"{symbol}={paths[symbol]}" for symbol in ("ALPHA", "BETA", "GAMMA")
+                  if symbol in paths]
+    if store_only:
+        console.print(f"\nMemory: {store_dir}\n[bold]Start the dashboard with:[/bold]")
+        console.print(
+            f"  tradingagents research serve --ticker SYNTH --csv {csv_dir} "
+            f"--start {DEMO_WINDOW['start']} --end {DEMO_WINDOW['paper_end']} "
+            f"--research-dir {store_dir} "
+            + " ".join(f"--feed replay:{symbol}" for symbol in ("ALPHA", "BETA", "GAMMA"))
+            + " " + " ".join(f"--replay-csv {item}" for item in replay_csv))
+        return
+
+    console.print("\n[bold]Opening the dashboard[/bold] — press Ctrl+C to stop.")
+    serve(port=port, host=host, ticker="SYNTH", timeframe="1d", context=None, confirm=None,
+          csv_dir=str(csv_dir), start=DEMO_WINDOW["start"], end=DEMO_WINDOW["paper_end"],
+          asset_type="stock", research_dir=research_dir,
+          feed=[f"replay:{symbol}" for symbol in ("ALPHA", "BETA", "GAMMA")],
+          feed_url=None, feed_subscribe=None, replay_csv=replay_csv)
+
+
 @research_app.command("feeds")
 def feeds_command() -> None:
     """Which free quotes exist, and what Indian equities actually require.

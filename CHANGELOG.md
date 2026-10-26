@@ -53,6 +53,12 @@ acceptance gates and refuses to promote the ones that do not clear them.
   frames, ping/pong), so no dependency was added and every frame is exercised against a real
   socket in the tests. The renderer is inline and CDN-free because the page has no network at
   runtime; with WebGL or JavaScript off, the table carries the same numbers.
+- **`tradingagents research demo`** — the whole loop in one command, for a first look. It
+  writes four synthetic instruments into `~/.tradingagents/demo/`, runs the real `run` and
+  `paper` code paths on them, then serves the dashboard with three replay tracks. The bars are
+  generated locally, labelled as synthetic on every screen and kept in their own directory, so
+  a demo can never be mistaken for, or mixed with, real evidence. `--store-only` builds the
+  memory and prints the equivalent `serve` command instead of starting a server.
 - **A design file for both screens.** `docs/design/strategy-intelligence.html` is a
   self-contained board — six frames, a layer tree, an inspector, components, tokens and
   redlines — covering the research dashboard and the 3D market view. Its palette is generated
