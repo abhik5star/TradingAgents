@@ -31,6 +31,11 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_GOOGLE_THINKING_LEVEL":   "google_thinking_level",
     "TRADINGAGENTS_OPENAI_REASONING_EFFORT": "openai_reasoning_effort",
     "TRADINGAGENTS_ANTHROPIC_EFFORT":        "anthropic_effort",
+    # Strategy Intelligence research memory and acceptance thresholds.
+    "TRADINGAGENTS_RESEARCH_DIR":            "research_dir",
+    "TRADINGAGENTS_RESEARCH_MIN_TRADES":     "research_min_trades",
+    "TRADINGAGENTS_RESEARCH_MAX_HYPOTHESES": "research_max_hypotheses",
+    "TRADINGAGENTS_RESEARCH_LIVE":           "research_live_trading",
 }
 
 
@@ -202,6 +207,42 @@ def build_default_config() -> dict:
             ".SA":  "^BVSP",       # B3 Brazil (Ibovespa)
             "":     "SPY",         # default for US-listed tickers (no suffix)
         },
+
+        # ------------------------------------------------------------------
+        # Strategy Intelligence (tradingagents.research)
+        #
+        # These are research defaults, not permissions. None of them can enable
+        # live trading: the research engine refuses to place orders at all, and
+        # ``live_trading_enabled`` only turns on through an explicit, recorded
+        # user approval plus a typed version confirmation.
+        # ------------------------------------------------------------------
+        # Where versions, experiments, autopsies and models are stored. None means
+        # results_dir/research, so the research memory sits beside the run logs.
+        "research_dir": None,
+        # Acceptance thresholds. A candidate that cannot meet them is reported as
+        # NO TRADE rather than promoted; raise the sample minimum only if you can
+        # actually supply that much out-of-sample data.
+        "research_min_trades": 40,
+        "research_min_oos_trades": 20,
+        "research_max_hypotheses": 2,
+        "research_walk_forward_folds": 4,
+        "research_holdout_budget": 3,
+        # Execution assumptions for every backtest. Deliberately non-zero: a
+        # frictionless backtest overstates every strategy it tests.
+        "research_costs": {
+            "commission_bps": 2.0,
+            "slippage_bps": 2.0,
+            "spread_bps": 2.0,
+            "tax_bps_sell": 0.0,
+            "funding_bps_per_day": 0.0,
+        },
+        "research_initial_equity": 100_000.0,
+        # Research-only switch: when True the loop may ask an LLM for *ideas*.
+        # An LLM can never approve, promote, size a position or touch risk limits.
+        "research_llm_ideas": False,
+        # Always False in the shipped config. Kept here so a deployment's config
+        # diff shows if anyone ever tries to turn the research engine into a trader.
+        "research_live_trading": False,
 
     })
 

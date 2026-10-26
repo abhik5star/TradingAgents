@@ -381,6 +381,106 @@ tradingagents backtest NVDA,AAPL --start 2026-06-01 --end 2026-08-01 --every 7
 
 Each cell is scored on realized alpha against the instrument's regional benchmark, grouped by rating. A decision is entered at the first close after its date, because a run reads news published after that day's close. Your own memory log is never written to, and re-running the same grid with `run_id=result.run_id` skips the cells that already ran, so an interrupted sweep continues where it stopped.
 
+## Strategy Intelligence: hypothesis research with gates
+
+`run_backtest` scores decisions the agents already made. The `research` commands answer a
+different question: *can a declared rule set earn its costs, out of sample, after the toy
+stories are removed?* It is a separate engine — a cost-aware backtester, an independent risk
+policy, purged validation, immutable strategy versions and a paper-first promotion path — and
+it is meant to say no.
+
+```bash
+tradingagents research init                        # seed V01 and the research memory
+tradingagents research observe --ticker NVDA --start 2015-01-01 --end 2025-01-01
+tradingagents research run NVDA --start 2015-01-01 --end 2025-01-01 --hypotheses 3
+tradingagents research status                      # the Strategy Intelligence dashboard
+tradingagents research hypotheses                  # every attempt, with the gate that failed
+```
+
+Paper trading is a first-class step, not a label for a backtest:
+
+```bash
+tradingagents research paper               # champion, forward from its out-of-sample end
+tradingagents research paper V03 --history # every recorded session, append-only
+tradingagents research serve               # browser dashboard with a paper-trade form
+```
+
+A paper session trades the version on bars *after* the out-of-sample window it was
+selected on, costs included, and records the window, the trades and the verdict. A session
+that cannot fill the window reports `pending` rather than a zero-trade "failure". Passing
+makes a version eligible for the approval conversation; it never approves anything, and the
+page cannot approve, promote, roll back or enable live trading — those stay on the command
+line because they need a deliberate human decision rather than a button.
+
+How it decides:
+
+- **Rules fill at the next bar's open**, never on the bar that produced the signal, and every
+  feature is bounded by data that had already printed. A counterfactual test rebuilds the whole
+  feature table on truncated history and fails if any column moves.
+- **Costs are always charged** — commission, slippage, half the spread, sell-side tax, funding —
+  and a cost-stress run at higher friction must still be profitable for a candidate to pass.
+- **Minimum sample, out-of-sample expectancy, walk-forward consistency, parameter stability,
+  holdout budget and multiple-testing correction** are checked before a version can replace the
+  baseline. Failing them produces `NO TRADE` with the measured reason, not a quieter strategy.
+- **The risk engine is not advisory.** Strategies request a position size; a frozen policy caps
+  it at 1% risk, 1x leverage and one open position, and only ever shrinks it. Policy changes are
+  refused unless every field is equal or tighter. The LLM layer cannot touch it.
+- **Nothing goes live by default.** Promotion is backtest → out-of-sample → walk-forward →
+  robustness → paper trading → risk review → an explicit approval from a named user, and then a
+  typed version confirmation. A rollback withdraws live permission immediately. This engine has
+  no broker connection and no order path at all.
+- **Every hypothesis is recorded**, accepted or rejected, in an append-only log the dashboard
+  reads; a rejected experiment is not proposed again without new evidence.
+
+The dashboard appears as a Strategy Intelligence section in the HTML report and can be written
+on its own (`tradingagents research dashboard --html out.html`) using the report's existing
+theme. Design, audit and limitations: [`docs/research_engine_plan.md`](docs/research_engine_plan.md)
+and [`docs/research_engine_report.md`](docs/research_engine_report.md).
+
+### Live quotes: free for crypto, gated for India
+
+The same dashboard serves a 3D market view at `/feeds`. It is display-only: nothing on that
+page reaches a backtest, a paper verdict or a research record.
+
+```bash
+tradingagents research feeds                        # which free quotes exist, and what they cost
+tradingagents research serve --feed binance:BTCUSDT --feed coinbase:BTC-USD
+tradingagents research serve --feed poll:RELIANCE.NS --feed poll:^NSEI
+tradingagents research serve --feed replay:SYNTH --replay-csv SYNTH=bars.csv   # offline demo
+```
+
+| provider   | kind      | what you get                          | cost                             |
+|------------|-----------|---------------------------------------|----------------------------------|
+| `binance`  | WebSocket | real-time trade prints                | free, keyless, no account        |
+| `coinbase` | WebSocket | real-time match feed                  | free, keyless, no account        |
+| `kraken`   | WebSocket | real-time trade prints (v2 API)       | free, keyless, no account        |
+| `poll`     | polling   | delayed quotes (~15 min for NSE)      | free, keyless                    |
+| `generic`  | WebSocket | your broker's stream (Kite, Upstox…)  | your own API key and account     |
+| `replay`   | simulated | historical bars on a compressed clock | free, offline — never a market observation |
+
+**There is no keyless public WebSocket for NSE or BSE.** Indian real-time quotes are licensed
+through brokers — Zerodha Kite, Upstox and Angel One all require an API key from your own funded
+account, and Kite's is a paid add-on. So the honest routes are `generic:` with your broker's
+endpoint and key, or `poll:` with delayed quotes. The dashboard labels every row `live`,
+`delayed`, `simulated` or `unavailable`; an endpoint the network cannot reach is reported as
+unavailable rather than quietly showing a stale number.
+
+The view is hand-written WebGL in three small files (no CDN, no Three.js — the page has no
+network access at runtime): one track of lit candles per symbol, a price tag projected onto the
+newest close, orbit/zoom/pause, a per-symbol legend, a live tape table and server-rendered
+sparklines. With JavaScript or WebGL off, the table carries every number; with nothing
+configured, the page says so instead of drawing an empty stage. A `generic` feed reads JSON
+frames; binary broker protocols (Kite's ticker, Upstox v3 protobuf) need a decoder first, and a
+feed that receives messages without a recognisable price says exactly that instead of showing a
+flat line.
+
+Both screens are designed in
+[`docs/design/strategy-intelligence.html`](docs/design/strategy-intelligence.html) — a
+self-contained design file (frames, layer tree, inspector, tokens, components, redlines) whose
+palette is asserted against the shipped CSS by the test suite. The scene inside it is rendered
+from the application's own geometry and camera, and `docs/design/tokens.tokens-studio.json` is
+the same palette in the format that imports into Figma variables.
+
 ## Reproducibility
 
 TradingAgents is LLM-driven, so two runs of the same ticker and date can differ. This is expected for a research tool built on language models, not a defect. The variation comes from a few distinct sources, and it helps to separate them.

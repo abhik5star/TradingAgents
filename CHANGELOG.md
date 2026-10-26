@@ -6,6 +6,78 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Changes that need action when upgrading are listed under "Upgrading from" in their release.
 
+## [Unreleased]
+
+Strategy Intelligence: a research engine that tests rule-based strategies against explicit
+acceptance gates and refuses to promote the ones that do not clear them.
+
+### Added
+
+- **`tradingagents research`** — a hypothesis loop (observe → diagnose → hypothesise → test →
+  validate → decide → record) over a cost-aware backtester, with purged chronological splits,
+  walk-forward folds, a look-ahead probe, a holdout ledger, cost stress, parameter-sensitivity
+  sweeps and multiple-testing correction. A candidate that clears every gate becomes a new
+  immutable version; one that does not produces `NO TRADE` with the measured reason.
+- **An independent risk engine.** A frozen policy (per-trade risk, daily loss, drawdown,
+  leverage, open positions, trade frequency) that can only ever shrink a strategy's requested
+  size. Policy changes that loosen any limit are refused, and no research output can enable
+  live trading: that needs paper testing, a named user's approval and a typed version
+  confirmation, and a rollback withdraws it immediately.
+- **Technicals the analysis workflow does not compute:** market structure (BOS/CHoCH, liquidity
+  sweeps, fair value gaps, order blocks, premium/discount), classic patterns, regime
+  classification, session/kill-zone context and multi-timeframe alignment, all in pandas/NumPy
+  with no new runtime dependency.
+- **An optional ML layer** built from NumPy: logistic regression with stored coefficients,
+  expanding-window out-of-fold evaluation, AUC/Brier/calibration reporting, a permutation
+  p-value, population-stability drift and a model registry. Registration never makes a model
+  champion; a model that is not calibrated cannot size positions.
+- **A Strategy Intelligence dashboard** in the Rich console and as a section of the existing
+  HTML report, reusing that report's CSS rather than adding a second theme.
+- **Yahoo `load_ohlcv_window`** in the data layer, so a backtest asks for an explicit window and
+  bar size and the vendor call stays where caching, retries and vendor errors already live.
+
+- **Paper trading as a step of its own.** `tradingagents research paper [VERSION]` trades a
+  version forward over bars after its out-of-sample window, costs included, and records the
+  window, the trades and the verdict; `--history` lists every session. Sessions are
+  append-only, a window that is too short reports `pending` instead of a zero-trade failure,
+  and the record says whether the start came from the version's recorded split or was
+  declared by a person.
+- **A browser dashboard.** `tradingagents research serve` (default port 32909) renders the
+  same snapshot as the report and adds exactly one action: run a paper session. Approve,
+  promote, roll back, risk-policy changes and live trading remain CLI-only, and every POST
+  needs the page's form token. Standard library only; no new dependency.
+- **Free real-time feeds and a 3D market view.** `research serve --feed binance:BTCUSDT`
+  streams keyless public WebSockets (Binance, Coinbase, Kraken) into a hand-written WebGL
+  scene at `/feeds`: orbit, zoom, a per-symbol legend, a live tape table and server-rendered
+  sparklines. A standard-library WebSocket client does the framing (masking, continuation
+  frames, ping/pong), so no dependency was added and every frame is exercised against a real
+  socket in the tests. The renderer is inline and CDN-free because the page has no network at
+  runtime; with WebGL or JavaScript off, the table carries the same numbers.
+- **A design file for both screens.** `docs/design/strategy-intelligence.html` is a
+  self-contained board — six frames, a layer tree, an inspector, components, tokens and
+  redlines — covering the research dashboard and the 3D market view. Its palette is generated
+  from the CSS the server ships (and asserted against it by the test suite), its scene is
+  rendered from the application's own camera and geometry, and `tokens.tokens-studio.json`
+  imports the same values into Figma as variables.
+- **An honest answer for Indian equities.** There is no keyless public NSE/BSE WebSocket, so
+  `research feeds` prints what each route actually costs (Kite, Upstox and Angel One all need
+  your own API key from a funded account; Kite's is paid), `poll:<SYMBOL>` shows delayed
+  quotes and `generic:<SYMBOL> --feed-url … --feed-subscribe …` attaches a broker stream. Every
+  row, card and API response is labelled `live`, `delayed`, `simulated` or `unavailable`, and an
+  unreachable endpoint reports its error rather than a stale price.
+
+### Notes
+
+- No existing command, agent, prompt, data vendor path or report style changes. The research
+  memory is stored under `<results_dir>/research` (override with `TRADINGAGENTS_RESEARCH_DIR`),
+  beside the run logs rather than inside them.
+- The research engine has no broker integration. It reports what a rule set would have done and
+  is designed to reject far more ideas than it accepts.
+- Live quotes are display-only. A tick stream never feeds a backtest, a paper verdict or a
+  research record: those still run on loaded bars, so watching a chart cannot change what the
+  engine believes. `replay:` feeds exist for demos and tests and are labelled `simulated`
+  everywhere they appear.
+
 ## [0.7.0] — 2026-10-16
 
 Runs on your ChatGPT plan, backtests scored from the first close after each decision, a note at start-up when a newer release is out, and a wheel attached to each GitHub release.

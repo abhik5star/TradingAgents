@@ -158,6 +158,72 @@ def _cache_is_fresh(data_file, as_of_dt, now) -> bool:
     return as_of_dt.date() < now.date() or (now - written).total_seconds() <= OHLCV_CACHE_TTL_SECONDS
 
 
+def load_ohlcv_window(symbol: str, start: str, end: str, *,
+                      interval: str = "1d", cache_dir: str | None = None,
+                      fill_gaps: bool = True) -> pd.DataFrame:
+    """OHLCV for an explicit ``[start, end]`` window and bar size.
+
+    ``load_ohlcv`` answers "everything up to an as-of date", which is what the
+    analyst tools need. A strategy backtest needs the opposite: a declared window
+    and bar size, so the sample behind a result is reproducible and a cache cannot
+    silently extend the history underneath a finished experiment.
+
+    The window is inclusive at both ends (Yahoo's ``end`` is exclusive). The cache
+    is per symbol and interval and is reused only when it already reaches the
+    requested end; otherwise it is replaced atomically. A vendor outage still
+    raises the usual errors from this layer rather than being reported as a fact
+    about the market.
+
+    ``fill_gaps`` behaves as in :func:`load_ohlcv`: prices are carried forward by
+    default so indicators compute on a continuous series, and passed through
+    untouched when the caller wants the values exactly as reported.
+    """
+    canonical = normalize_symbol(symbol)
+    safe_symbol = safe_ticker_component(canonical)
+    start_dt = pd.Timestamp(start).normalize()
+    end_dt = pd.Timestamp(end).normalize()
+    if end_dt < start_dt:
+        raise ValueError(f"the window ends before it starts: {start}..{end}")
+
+    directory = cache_dir or get_config()["data_cache_dir"]
+    os.makedirs(directory, exist_ok=True)
+    data_file = os.path.join(directory, f"{safe_symbol}-research-{interval}.csv")
+
+    data = None
+    if os.path.exists(data_file):
+        cached = pd.read_csv(data_file, on_bad_lines="skip", encoding="utf-8")
+        if not cached.empty and "Close" in cached.columns:
+            cached = _clean_dataframe(cached)
+            covered = not cached.empty and cached["Date"].max() >= end_dt
+            if covered:
+                data = cached
+
+    if data is None:
+        # yfinance ``end`` is EXCLUSIVE; request the day after so ``end`` is included.
+        end_exclusive = (end_dt + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        downloaded = yf_retry(lambda: yf.Ticker(canonical).history(
+            start=start_dt.strftime("%Y-%m-%d"),
+            end=end_exclusive,
+            interval=interval,
+            auto_adjust=True,
+            actions=False,
+        ))
+        if downloaded is None:
+            raise_for_empty(symbol, canonical, "price rows")
+        downloaded = _ensure_date_column(downloaded.reset_index())
+        if downloaded.empty or "Close" not in downloaded.columns:
+            raise_for_empty(symbol, canonical, "price rows")
+        replace_file(data_file,
+                     lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
+        data = downloaded
+
+    data = _clean_dataframe(data)
+    data = data[(data["Date"] >= start_dt) & (data["Date"] <= end_dt)]
+    if data.empty:
+        raise_for_empty(symbol, canonical, "price rows")
+    return _fill_price_gaps(data) if fill_gaps else data.dropna(subset=["Close"]).copy()
+
+
 def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataFrame:
     """Fetch OHLCV data with caching, filtered to prevent look-ahead bias.
 
