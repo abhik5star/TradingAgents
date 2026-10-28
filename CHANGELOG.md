@@ -59,6 +59,10 @@ acceptance gates and refuses to promote the ones that do not clear them.
   generated locally, labelled as synthetic on every screen and kept in their own directory, so
   a demo can never be mistaken for, or mixed with, real evidence. `--store-only` builds the
   memory and prints the equivalent `serve` command instead of starting a server.
+- **`scripts/preview.sh`** — one command to start the dashboard on a machine with nothing
+  set up: it creates `.venv` when missing, installs only when it has to, verifies the entry
+  point and then hands over to `research demo`. Idempotent by design, because a checkout that
+  has lost its untracked files should recover with one command rather than a sequence.
 - **A design file for both screens.** `docs/design/strategy-intelligence.html` is a
   self-contained board — six frames, a layer tree, an inspector, components, tokens and
   redlines — covering the research dashboard and the 3D market view. Its palette is generated

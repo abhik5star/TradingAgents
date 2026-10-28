@@ -90,11 +90,11 @@ outcome, not an error, and it always carries its measured reason.
 
 ```
 $ .venv/bin/python -m pytest -q
-1658 passed, 1 skipped, 1 deselected, 100 subtests passed    (63.5 s)
+1663 passed, 1 skipped, 1 deselected, 100 subtests passed    (56.5 s)
 ```
 
-Baseline before this work was `1361 passed, 1 skipped`. The addition is **297 tests** across
-19 new modules:
+Baseline before this work was `1361 passed, 1 skipped`. The addition is **302 tests** across
+20 new modules:
 
 | Test module | Covers |
 | --- | --- |
@@ -116,6 +116,7 @@ Baseline before this work was `1361 passed, 1 skipped`. The addition is **297 te
 | `test_research_server.py` (10) | page rendering, form token, redirect message, JSON snapshot, escaping, refused sessions, `/feeds` and `/api/feeds`, no store writes |
 | `test_research_feeds.py` (43) | WebSocket handshake/masking/fragmentation/ping/close over a socket pair, provider parsers, candle rolling, replay determinism, poll labels, hub snapshot, CLI feed builder |
 | `test_design_board.py` (7) | the design file is self-contained, its layers resolve, its scripts parse, and its palette matches the CSS the app ships |
+| `test_preview_script.py` (5) | the preview script parses, is executable, installs only into `.venv`, and starts the demo rather than a second launcher |
 | `test_research_demo.py` (11) | the demo's generator is the test fixtures' generator, CSVs load through the real source, and one command delegates to `run`/`paper`/`serve` with every option filled in |
 | `test_research_livepage.py` (19) | page carries the numbers without JS, no external references, boot payload escaping, sparklines, Node syntax + geometry + a full stub-GL render |
 

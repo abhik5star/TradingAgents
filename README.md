@@ -403,6 +403,9 @@ It generates four synthetic instruments into `~/.tradingagents/demo/`, runs the 
 from the demo describes the generator, not a market. Delete that directory to start again,
 or `--store-only` to build the memory and print the exact `research serve` command instead of
 serving. Real work is the same loop on real bars — drop `--csv` and name a ticker.
+`scripts/preview.sh` is the same thing plus environment repair: it creates `.venv` if it is
+missing, installs only when it has to, then starts the demo — useful after a fresh clone or a
+wiped working directory.
 
 ```bash
 tradingagents research init                        # seed V01 and the research memory
